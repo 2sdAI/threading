@@ -1,0 +1,38 @@
+{
+  "name": "2sdai-threading",
+  "version": "1.0.3",
+  "description": "Multi-agent AI collaboration platform with real-time sync",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve -s . -p 8000",
+    "dev": "npx serve -s . -p 8000",
+    "lint": "echo 'No linting configured yet'",
+    "test": "echo 'No tests configured yet'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/2sdAI-Threading.git"
+  },
+  "keywords": [
+    "ai",
+    "chat",
+    "pwa",
+    "openai",
+    "claude",
+    "openrouter",
+    "multi-agent",
+    "sync",
+    "offline-first"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yourusername/2sdAI-Threading/issues"
+  },
+  "homepage": "https://github.com/yourusername/2sdAI-Threading#readme",
+  "devDependencies": {},
+  "dependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

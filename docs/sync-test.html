@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sync Test Tool</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: system-ui, -apple-system, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 2rem;
+        }
+        h1 { margin-bottom: 1rem; }
+        .status { 
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-family: monospace;
+        }
+        .status.good { background: rgba(34, 197, 94, 0.2); border: 1px solid #22c55e; }
+        .status.bad { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; }
+        button {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 0.25rem;
+        }
+        button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        #log {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 1rem;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.875rem;
+            margin-top: 1rem;
+        }
+        .log-entry { padding: 0.25rem 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .log-entry:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Cross-Window Sync Test</h1>
+        <p style="margin-bottom: 2rem;">Open this page in multiple windows/tabs to test synchronization</p>
+        
+        <div id="bcStatus" class="status">BroadcastChannel: Checking...</div>
+        <div id="swStatus" class="status">Service Worker: Checking...</div>
+        <div id="lsStatus" class="status">localStorage: Checking...</div>
+        
+        <div style="margin-top: 2rem;">
+            <h3>Send Test Messages:</h3>
+            <button onclick="testBroadcastChannel()">Test BroadcastChannel</button>
+            <button onclick="testServiceWorker()">Test Service Worker</button>
+            <button onclick="testLocalStorage()">Test localStorage</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+        
+        <div id="log"></div>
+    </div>
+
+    <script>
+        const log = document.getElementById('log');
+        const bcStatus = document.getElementById('bcStatus');
+        const swStatus = document.getElementById('swStatus');
+        const lsStatus = document.getElementById('lsStatus');
+
+        let bc = null;
+
+        // Add log entry
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'receive' ? '📨' : type === 'send' ? '📤' : 'ℹ️';
+            entry.textContent = `[${timestamp}] ${icon} ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function clearLog() {
+            log.innerHTML = '';
+            addLog('Log cleared');
+        }
+
+        // Check BroadcastChannel
+        if ('BroadcastChannel' in window) {
+            bc = new BroadcastChannel('sync-test');
+            bcStatus.textContent = 'BroadcastChannel: ✅ Supported & Ready';
+            bcStatus.className = 'status good';
+            
+            bc.addEventListener('message', (event) => {
+                addLog(`BroadcastChannel received: ${JSON.stringify(event.data)}`, 'receive');
+            });
+        } else {
+            bcStatus.textContent = 'BroadcastChannel: ❌ Not Supported';
+            bcStatus.className = 'status bad';
+        }
+
+        // Check Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then(registration => {
+                swStatus.textContent = 'Service Worker: ✅ Ready';
+                swStatus.className = 'status good';
+                addLog('Service Worker is ready');
+            }).catch(err => {
+                swStatus.textContent = 'Service Worker: ❌ Not Ready';
+                swStatus.className = 'status bad';
+            });
+
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                addLog(`Service Worker received: ${JSON.stringify(event.data)}`, 'receive');
+            });
+        } else {
+            swStatus.textContent = 'Service Worker: ❌ Not Supported';
+            swStatus.className = 'status bad';
+        }
+
+        // Check localStorage
+        lsStatus.textContent = 'localStorage: ✅ Supported';
+        lsStatus.className = 'status good';
+
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'sync-test-event') {
+                const data = JSON.parse(event.newValue);
+                addLog(`localStorage received: ${JSON.stringify(data)}`, 'receive');
+            }
+        });
+
+        // Test functions
+        function testBroadcastChannel() {
+            if (bc) {
+                const message = { test: 'BroadcastChannel', time: Date.now() };
+                bc.postMessage(message);
+                addLog(`BroadcastChannel sent: ${JSON.stringify(message)}`, 'send');
+            } else {
+                addLog('BroadcastChannel not available!', 'info');
+            }
+        }
+
+        function testServiceWorker() {
+            if (navigator.serviceWorker.controller) {
+                const message = { test: 'ServiceWorker', time: Date.now() };
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'test-relay',
+                    data: message
+                });
+                addLog(`Service Worker sent: ${JSON.stringify(message)}`, 'send');
+            } else {
+                addLog('Service Worker controller not available!', 'info');
+            }
+        }
+
+        function testLocalStorage() {
+            const message = { test: 'localStorage', time: Date.now() };
+            localStorage.setItem('sync-test-event', JSON.stringify(message));
+            addLog(`localStorage sent: ${JSON.stringify(message)}`, 'send');
+            setTimeout(() => {
+                localStorage.removeItem('sync-test-event');
+            }, 100);
+        }
+
+        // Initial log
+        addLog('Sync Test Tool initialized');
+        addLog('Open this page in another window/tab to test!');
+    </script>
+</body>
+</html>

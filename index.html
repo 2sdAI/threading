@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1f2937">
+    <meta name="description" content="AI Team Manager - Multi-Agent Collaboration Platform">
+    <title>AI Team Manager</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="assets/icons/icon-192x192.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    
+    <link rel="stylesheet" href="css/styles.css">
+
+    <script src="js/modules/chat-classes.js"></script>
+    <script src="js/modules/ai-provider.js"></script>
+    <script src="js/modules/provider-storage.js"></script>
+    <script src="js/modules/chat-storage.js"></script>
+    <script src="js/sync-manager.js"></script>
+    
+    <script src="js/modules/chat-manager.js"></script>
+    <script src="js/ui-manager.js"></script>
+</head>
+<body>
+    <div id="sidebarOverlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden" onclick="toggleSidebar()"></div>
+    
+    <div class="app-container">
+        <div id="sidebar" class="glass custom-scrollbar">
+            <div class="p-4 border-b border-white/20">
+                <div class="flex items-center justify-between mb-4">
+                    <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                        <i data-lucide="sparkles" class="w-6 h-6"></i>
+                        AI Team
+                    </h1>
+                    <button onclick="toggleSidebar()" class="lg:hidden text-white/80 hover:text-white">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="createNewChat()" class="flex-1 bg-white text-purple-600 px-3 py-2 rounded-lg font-semibold hover:bg-white/90 transition-all text-sm flex items-center justify-center gap-1">
+                        <i data-lucide="message-square" class="w-4 h-4"></i>
+                        New Chat
+                    </button>
+                    <button onclick="createNewProject()" class="flex-1 bg-white/20 text-white px-3 py-2 rounded-lg font-semibold hover:bg-white/30 transition-all text-sm flex items-center justify-center gap-1">
+                        <i data-lucide="folder-plus" class="w-4 h-4"></i>
+                        Project
+                    </button>
+                </div>
+            </div>
+            
+            <div id="projectContext" class="p-3 border-b border-white/20 bg-white/5" style="display: none;">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                        <i data-lucide="folder" class="w-4 h-4 text-white/60 flex-shrink-0"></i>
+                        <span id="currentProjectName" class="text-white text-sm font-semibold truncate">Project</span>
+                    </div>
+                    <button onclick="exitProject()" class="text-white/60 hover:text-white" title="Exit project">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div id="sidebarTabs" class="flex border-b border-white/20 overflow-x-auto custom-scrollbar">
+                <button onclick="switchTab('chats')" id="tab-chats" class="flex-1 px-3 py-3 text-white font-medium text-xs border-b-2 border-white transition-colors whitespace-nowrap">Chats</button>
+                <button onclick="switchTab('projects')" id="tab-projects" class="flex-1 px-3 py-3 text-white/60 font-medium text-xs border-b-2 border-transparent hover:text-white transition-colors whitespace-nowrap">Projects</button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto custom-scrollbar">
+                <div id="sidebar-chats" class="p-2"></div>
+                <div id="sidebar-projects" class="p-2" style="display: none;"></div>
+            </div>
+            
+            <div class="p-4 border-t border-white/20 mt-auto space-y-2">
+                <button id="pwaInstallBtn" onclick="ui.installPWA()" class="w-full bg-blue-600 text-white hover:bg-blue-500 px-4 py-3 rounded-lg transition-all flex items-center justify-center gap-2 font-bold shadow-lg mb-2" style="display: none;">
+                    <i data-lucide="download" class="w-5 h-5"></i>
+                    Install App
+                </button>
+
+                <button onclick="navigateToSettings()" class="w-full text-white/80 hover:text-white px-4 py-2 rounded-lg hover:bg-white/10 transition-all flex items-center gap-2">
+                    <i data-lucide="settings" class="w-5 h-5"></i>
+                    Settings
+                </button>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div id="welcomeView" class="flex items-center justify-center h-full p-8">
+                <div class="text-center max-w-2xl">
+                    <div class="mb-6">
+                        <i data-lucide="sparkles" class="w-20 h-20 mx-auto text-white/80"></i>
+                    </div>
+                    <h1 class="text-4xl font-bold text-white mb-4">Welcome to AI Team Manager</h1>
+                    <p class="text-white/60 text-lg mb-8">Your intelligent multi-agent collaboration platform</p>
+                    <button onclick="createNewChat()" class="bg-white text-purple-600 px-8 py-3 rounded-lg font-semibold hover:bg-white/90 transition-all inline-flex items-center gap-2">
+                        <i data-lucide="message-square" class="w-5 h-5"></i>
+                        Start New Chat
+                    </button>
+                    
+                    <div class="mt-8 text-white/30 text-sm">
+                        <p>Go to Settings to add your AI Providers</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="chatView" style="display: none;">
+                <div class="chat-header glass border-b border-white/20 p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-3 flex-1">
+                            <button onclick="toggleSidebar()" class="lg:hidden text-white/80 hover:text-white p-1">
+                                <i data-lucide="menu" class="w-6 h-6"></i>
+                            </button>
+                            <div class="flex-1 min-w-0">
+                                <h2 id="chatTitle" class="text-xl font-semibold text-white truncate">Chat</h2>
+                                <div id="chatSubtitle" class="text-sm text-white/60 truncate"></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="showChatSettings()" class="text-white/80 hover:text-white p-2 rounded hover:bg-white/10" title="Chat Settings">
+                                <i data-lucide="settings" class="w-5 h-5"></i>
+                            </button>
+                            <button onclick="clearChat()" class="text-white/80 hover:text-white p-2 rounded hover:bg-white/10" title="Clear">
+                                <i data-lucide="eraser" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white/5 rounded-lg p-3 border border-white/10">
+                        <div class="flex items-center gap-2 mb-2">
+                            <i data-lucide="zap" class="w-4 h-4 text-yellow-300"></i>
+                            <label class="text-white/70 text-xs font-medium">Provider</label>
+                        </div>
+                        <div class="flex gap-2">
+                            <select id="chatProviderSelect" onchange="onChatProviderChange()" class="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm cursor-pointer">
+                                <option>Loading...</option>
+                            </select>
+                            <select id="chatModelSelect" class="flex-1 px-3 py-2 bg-white/10 border border-white/20 rounded text-white text-sm cursor-pointer">
+                                <option>Select model</option>
+                            </select>
+                        </div>
+                        <div id="chatProviderStatus" class="flex items-center gap-2 mt-2 text-xs">
+                            <i data-lucide="info" class="w-3 h-3 text-blue-400"></i>
+                            <span class="text-blue-200">Select provider and model</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="messagesContainer" class="custom-scrollbar"></div>
+
+                <div class="chat-input-area">
+                    <div class="input-wrapper">
+                        <textarea 
+                            id="messageInput" 
+                            placeholder="Type your message... (Shift+Enter for new line)"
+                            class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 resize-none focus:outline-none focus:border-white/40"
+                            rows="1"
+                            onkeydown="handleInputKeydown(event)"
+                        ></textarea>
+                        <button 
+                            onclick="sendMessage()" 
+                            class="absolute right-3 bottom-3 bg-white text-purple-600 p-2 rounded-lg hover:bg-white/90 transition-all"
+                        >
+                            <i data-lucide="send" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="settingsView" style="display: none;" class="h-full overflow-y-auto custom-scrollbar">
+                <div class="max-w-4xl mx-auto p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h1 class="text-3xl font-bold text-white">Settings</h1>
+                        <button onclick="closeSettings()" class="text-white/60 hover:text-white">
+                            <i data-lucide="x" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+
+                    <div class="flex gap-4 mb-6 border-b border-white/20">
+                        <button onclick="switchSettingsTab('providers')" id="settingsTab-providers" class="px-4 py-3 text-white font-semibold border-b-2 border-white">
+                            AI Providers
+                        </button>
+                        <button onclick="switchSettingsTab('agents')" id="settingsTab-agents" class="px-4 py-3 text-white/60 font-semibold border-b-2 border-transparent hover:text-white">
+                            Agents
+                        </button>
+                    </div>
+
+                    <div id="settingsContent-providers">
+                        <div class="flex items-center justify-between mb-4">
+                            <p class="text-white/70">Configure your AI provider API connections</p>
+                            <button onclick="showAddProviderModal()" class="bg-white text-purple-600 px-4 py-2 rounded-lg font-semibold hover:bg-white/90 flex items-center gap-2">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                Add Provider
+                            </button>
+                        </div>
+                        <div id="providersList" class="space-y-4"></div>
+                    </div>
+
+                    <div id="settingsContent-agents" style="display: none;">
+                        <p class="text-white/50">Agent management coming soon...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="chatSettingsModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-white">Chat Settings</h2>
+                <button onclick="closeChatSettings()" class="text-white/60 hover:text-white">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-white text-sm font-medium mb-2">Chat Title</label>
+                    <input type="text" id="chatSettingsTitle" class="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-white/40">
+                </div>
+                
+                <div>
+                    <label class="block text-white text-sm font-medium mb-2">Default Provider</label>
+                    <select id="chatSettingsProvider" onchange="updateChatSettingsModels()" class="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white cursor-pointer focus:outline-none focus:border-white/40">
+                        <option value="">Use global active provider</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-white text-sm font-medium mb-2">Default Model</label>
+                    <select id="chatSettingsModel" class="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white cursor-pointer focus:outline-none focus:border-white/40">
+                        <option value="">Use provider's default model</option>
+                    </select>
+                </div>
+                
+                <div class="flex gap-3 pt-4">
+                    <button onclick="saveChatSettings()" class="flex-1 bg-white text-purple-600 px-4 py-2 rounded-lg font-semibold hover:bg-white/90 transition-all">
+                        Save Changes
+                    </button>
+                    <button onclick="closeChatSettings()" class="flex-1 bg-white/10 text-white px-4 py-2 rounded-lg font-semibold hover:bg-white/20 transition-all">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="providerModal" class="modal" style="display: none;">
+        <div class="modal-content max-w-3xl">
+            <h2 class="text-2xl font-bold text-white mb-4" id="providerModalTitle">Add AI Provider</h2>
+            <input type="hidden" id="providerModalId">
+            
+            <div class="mb-4">
+                <label class="block text-white font-semibold mb-2">Provider Template</label>
+                <select id="providerModalTemplate" onchange="loadProviderTemplate()" class="w-full px-4 py-3 bg-white/10 border border-white/30 rounded-lg text-white">
+                    <option value="">Custom Provider</option>
+                    <option value="openai">OpenAI (ChatGPT)</option>
+                    <option value="anthropic">Anthropic (Claude)</option>
+                    <option value="openrouter">OpenRouter (Multiple Models - Many Free!)</option>
+                    <option value="groq">Groq (Fast Inference)</option>
+                    <option value="deepseek">DeepSeek</option>
+                </select>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-white font-semibold mb-2">Provider Name *</label>
+                    <input type="text" id="providerModalName" placeholder="My AI Provider" class="w-full px-4 py-3 bg-white/10 border border-white/30 rounded-lg text-white">
+                </div>
+                <div>
+                    <label class="block text-white font-semibold mb-2">Provider Type</label>
+                    <input type="text" id="providerModalType" placeholder="custom" class="w-full px-4 py-3 bg-white/10 border border-white/30 rounded-lg text-white">
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-white font-semibold mb-2">API URL *</label>
+                <input type="text" id="providerModalApiUrl" placeholder="https://api.example.com/v1/chat/completions" class="w-full px-4 py-3 bg-white/10 border border-white/30 rounded-lg text-white">
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-white font-semibold mb-2">API Key</label>
+                <input type="password" id="providerModalApiKey" placeholder="Your API key" class="w-full px-4 py-3 bg-white/10 border border-white/30 rounded-lg text-white">
+                <p class="text-white/50 text-xs mt-1">Your API key is encrypted and stored securely in your browser</p>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-white font-semibold mb-2">Default Model</label>
+                <input type="text" id="providerModalDefaultModel" placeholder="model-name" class="w-full px-4 py-3 bg-white/10 border border-white/30 rounded-lg text-white">
+            </div>
+
+            <div class="mb-4">
+                <div class="flex items-center justify-between mb-2">
+                    <label class="block text-white font-semibold">Available Models</label>
+                    <button onclick="addProviderModel()" class="text-white/80 hover:text-white text-sm flex items-center gap-1">
+                        <i data-lucide="plus" class="w-4 h-4"></i>
+                        Add Model
+                    </button>
+                </div>
+                <div id="providerModalModels" class="space-y-2 max-h-64 overflow-y-auto custom-scrollbar bg-black/20 rounded p-2"></div>
+            </div>
+
+            <div class="mb-4">
+                <label class="flex items-center gap-2 text-white cursor-pointer">
+                    <input type="checkbox" id="providerModalEnabled" class="w-5 h-5" checked>
+                    <span>Enabled</span>
+                </label>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button onclick="saveProvider()" class="flex-1 bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold">Save Provider</button>
+                <button onclick="testProvider()" class="bg-green-500/20 text-green-100 px-6 py-3 rounded-lg font-semibold">Test Connection</button>
+                <button onclick="closeProviderModal()" class="bg-white/20 text-white px-6 py-3 rounded-lg font-semibold">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(registration => {
+                        console.log('✅ ServiceWorker registered:', registration.scope);
+
+                        // Check for updates
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    if (window.ui) window.ui.showUpdateNotification(newWorker);
+                                }
+                            });
+                        });
+                    })
+                    .catch(err => {
+                        console.log('❌ ServiceWorker registration failed:', err);
+                    });
+            });
+        } else {
+            console.log('⚠️ ServiceWorker not supported in this browser');
+        }
+    </script>
+</body>
+</html>
