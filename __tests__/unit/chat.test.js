@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Chat } from '../../js/modules/chat.js';
-import { Message } from '../../js/modules/message.js';
+import { Chat } from '@/modules/chat.js';
+import { Message } from '@/modules/message.js';
 
 describe('Chat', () => {
     let chat;

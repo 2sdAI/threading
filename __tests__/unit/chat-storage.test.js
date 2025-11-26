@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import 'fake-indexeddb/auto'; // Uses the in-memory IndexedDB implementation
-import { ChatStorage } from '../../js/modules/chat-storage.js';
-import { Chat } from '../../js/modules/chat.js';
+import { ChatStorage } from '@/modules/chat-storage.js';
+import { Chat } from '@/modules/chat.js';
 
 describe('ChatStorage', () => {
     let storage;

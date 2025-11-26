@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ChatManager } from '../../js/modules/chat-manager.js';
-import { Chat } from '../../js/modules/chat.js';
-import { Message } from '../../js/modules/message.js';
+import { ChatManager } from '@/modules/chat-manager.js';
+import { Chat } from '@/modules/chat.js';
+import { Message } from '@/modules/message.js';
 
 // Mock ChatStorage
 const createMockStorage = () => ({
