@@ -6,13 +6,13 @@ import { AIProvider } from './ai-provider.js';
  * Simple Encryption Manager
  */
 class EncryptionManager {
-    async encrypt(text) { 
+    async encrypt(text) {
         if (!text || text.length === 0) return '';
-        return btoa(text); 
+        return btoa(text);
     }
-    async decrypt(text) { 
+    async decrypt(text) {
         if (!text || text.length === 0) return '';
-        return atob(text); 
+        return atob(text);
     }
 }
 
