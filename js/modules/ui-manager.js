@@ -10,7 +10,7 @@ export class UIManager {
         this.chatManager = chatManager;
         this.currentView = null;
         this.sidebarTab = 'chats';
-        this.deferredPrompt = null; 
+        this.deferredPrompt = null;
     }
 
     /**
@@ -18,7 +18,7 @@ export class UIManager {
      */
     init() {
         this.setupEventListeners();
-        this.setupPWA(); 
+        this.setupPWA();
         this.showView('welcomeView');
     }
 
@@ -161,7 +161,7 @@ export class UIManager {
         const container = document.getElementById('sidebar-chats');
         if (!container) return;
 
-        const chats = this.chatManager.currentProjectId 
+        const chats = this.chatManager.currentProjectId
             ? this.chatManager.getChatsByProject(this.chatManager.currentProjectId)
             : this.chatManager.getActiveChats();
 
@@ -180,7 +180,7 @@ export class UIManager {
         container.innerHTML = chats.map(chat => {
             const isActive = chat.id === this.chatManager.currentChatId;
             const lastMessage = chat.getLastMessage();
-            const preview = lastMessage 
+            const preview = lastMessage
                 ? (lastMessage.content.substring(0, 60) + (lastMessage.content.length > 60 ? '...' : ''))
                 : 'No messages';
 
@@ -235,7 +235,7 @@ export class UIManager {
             return;
         }
 
-        container.innerHTML = messages.map((msg, index) => {
+        container.innerHTML = messages.map((msg) => {
             const isUser = msg.role === 'user';
             const alignment = isUser ? 'justify-end' : 'justify-start';
             const fadeClass = 'fade-in';
@@ -315,9 +315,9 @@ export class UIManager {
     notify(message, type = 'info') {
         const notification = document.createElement('div');
         notification.className = `fixed top-4 right-4 z-[200] px-4 py-3 rounded-lg shadow-lg text-white fade-in ${
-            type === 'error' ? 'bg-red-500' : 
-            type === 'success' ? 'bg-green-500' : 
-            'bg-blue-500'
+            type === 'error' ? 'bg-red-500' :
+                type === 'success' ? 'bg-green-500' :
+                    'bg-blue-500'
         }`;
         notification.innerHTML = `
             <div class="flex items-center gap-2">
@@ -432,7 +432,7 @@ export class UIManager {
         if (!chat) return;
         const providerSelect = document.getElementById('chatProviderSelect');
         const providers = await this.chatManager.providerStorage.getEnabledProviders();
-        
+
         if (providers.length === 0) {
             providerSelect.innerHTML = '<option value="">No providers configured</option>';
             return;
@@ -453,9 +453,9 @@ export class UIManager {
         }
         // Check if the provider actually exists in list (might have been deleted)
         if (!providers.find(p => p.id === selectedProviderId)) {
-             selectedProviderId = providers[0].id;
+            selectedProviderId = providers[0].id;
         }
-        
+
         providerSelect.value = selectedProviderId;
         await this.updateChatModelSelector(chat, false);
     }
@@ -463,7 +463,7 @@ export class UIManager {
     async updateChatModelSelector(chat, preserveSelection = false) {
         const providerId = document.getElementById('chatProviderSelect').value;
         const modelSelect = document.getElementById('chatModelSelect');
-        
+
         if (!providerId) {
             modelSelect.innerHTML = '<option>No Provider</option>';
             return;
@@ -474,7 +474,7 @@ export class UIManager {
 
         const currentSelection = modelSelect.value;
         modelSelect.innerHTML = '';
-        
+
         provider.models.forEach(model => {
             const option = document.createElement('option');
             option.value = model.id;
@@ -497,14 +497,14 @@ export class UIManager {
 
     updateStatusText(provider, modelId, chat) {
         const statusDiv = document.getElementById('chatProviderStatus');
-        if(!provider) {
-             statusDiv.innerHTML = `<i data-lucide="alert-circle" class="w-3 h-3 text-red-400"></i> <span class="text-red-200">No provider selected</span>`;
-             lucide.createIcons();
-             return;
+        if (!provider) {
+            statusDiv.innerHTML = '<i data-lucide="alert-circle" class="w-3 h-3 text-red-400"></i> <span class="text-red-200">No provider selected</span>';
+            lucide.createIcons();
+            return;
         }
         const selectedModel = provider.models.find(m => m.id === modelId);
         const isChatDefault = chat && chat.defaultProviderId === provider.id && chat.defaultModelId === modelId;
-        
+
         statusDiv.innerHTML = `
             <i data-lucide="check-circle" class="w-3 h-3 text-green-400"></i>
             <span class="text-green-200"><strong>${this.escapeHtml(provider.name)}</strong> · ${this.escapeHtml(selectedModel?.name || modelId)}${isChatDefault ? ' (Chat Default)' : ''}</span>

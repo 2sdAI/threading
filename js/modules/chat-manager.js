@@ -1,5 +1,4 @@
 import { Chat } from './chat.js';
-import { Message } from './message.js';
 import { ChatStorage } from './chat-storage.js';
 import { ProviderStorage } from './provider-storage.js';
 
@@ -26,17 +25,17 @@ export class ChatManager {
     async init() {
         // Initialize storage first (this will create/upgrade the database with all stores)
         await this.storage.init();
-        
+
         // Then initialize provider storage (will use the already-initialized database)
         await this.providerStorage.init();
-        
+
         // Load chats
         await this.loadChats();
-        
+
         // Restore current chat and project IDs
         this.currentChatId = await this.storage.getCurrentChatId();
         this.currentProjectId = await this.storage.getCurrentProjectId();
-        
+
         return this;
     }
 
@@ -105,10 +104,10 @@ export class ChatManager {
         const chat = Chat.create(config);
         this.chats.unshift(chat); // Add to beginning of array
         await this.storage.saveChat(chat);
-        
+
         // Set as current chat
         await this.setCurrentChat(chat.id);
-        
+
         return chat;
     }
 
@@ -230,7 +229,7 @@ export class ChatManager {
         const content = firstUserMessage.content;
         const title = content.split('\n')[0].substring(0, 50);
         chat.title = title + (content.length > 50 ? '...' : '');
-        
+
         await this.saveChat(chat);
     }
 
@@ -297,12 +296,12 @@ export class ChatManager {
         if (!chat) return null;
 
         const msg = chat.addMessage(message);
-        
+
         // Auto-generate title if this is the first message
         if (chat.getMessageCount() === 1) {
             await this.generateAutoTitle(chatId);
         }
-        
+
         await this.saveChat(chat);
         return msg;
     }
@@ -414,7 +413,7 @@ export class ChatManager {
                 return true;
             }
             // Search in message content
-            return chat.messages.some(msg => 
+            return chat.messages.some(msg =>
                 msg.content.toLowerCase().includes(lowerQuery)
             );
         });

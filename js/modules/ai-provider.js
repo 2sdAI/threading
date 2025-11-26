@@ -42,10 +42,10 @@ export class AIProvider {
     async testConnection() {
         try {
             const headers = this._getHeaders();
-            
+
             let url = this.apiUrl;
             const isChatEndpoint = url.endsWith('/chat/completions');
-            
+
             let body = null;
             let method = 'GET';
 
@@ -85,17 +85,17 @@ export class AIProvider {
      */
     async sendRequest(messages, modelId) {
         const headers = this._getHeaders();
-        
+
         let url = this.apiUrl;
         if (!url.endsWith('/chat/completions') && !url.includes('/messages')) {
-             url = url.replace(/\/$/, '') + '/chat/completions';
+            url = url.replace(/\/$/, '') + '/chat/completions';
         }
 
         const payload = {
             model: modelId || this.defaultModel,
             messages: messages,
             temperature: 0.7,
-            stream: false 
+            stream: false
         };
 
         if (this.type === 'anthropic') {
@@ -114,7 +114,7 @@ export class AIProvider {
         }
 
         const data = await response.json();
-        
+
         if (this.type === 'anthropic') {
             return data.content[0].text;
         } else {

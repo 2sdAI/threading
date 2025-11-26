@@ -3,11 +3,17 @@
   "version": "1.0.3",
   "description": "Multi-agent AI collaboration platform with real-time sync",
   "main": "index.html",
+  "type": "module",
   "scripts": {
     "start": "npx serve -s . -p 8000",
     "dev": "npx serve -s . -p 8000",
-    "lint": "echo 'No linting configured yet'",
-    "test": "echo 'No tests configured yet'"
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "test:unit": "vitest run --config vitest.config.js",
+    "test:e2e": "playwright test",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix"
   },
   "repository": {
     "type": "git",
@@ -30,7 +36,17 @@
     "url": "https://github.com/yourusername/2sdAI-Threading/issues"
   },
   "homepage": "https://github.com/yourusername/2sdAI-Threading#readme",
-  "devDependencies": {},
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.57.0",
+    "@vitest/ui": "^4.0.13",
+    "@vitest/coverage-v8": "^4.0.13",
+    "eslint": "^9.39.1",
+    "globals": "^15.13.0",
+    "fake-indexeddb": "^6.0.0",
+    "jsdom": "^25.0.1",
+    "vitest": "^4.0.13"
+  },
   "dependencies": {},
   "engines": {
     "node": ">=14.0.0"

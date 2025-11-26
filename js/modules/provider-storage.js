@@ -1,11 +1,19 @@
+// js/modules/provider-storage.js
+
 import { AIProvider } from './ai-provider.js';
 
 /**
  * Simple Encryption Manager
  */
 class EncryptionManager {
-    async encrypt(text) { return btoa(text); }
-    async decrypt(text) { return atob(text); }
+    async encrypt(text) {
+        if (!text || text.length === 0) return '';
+        return btoa(text);
+    }
+    async decrypt(text) {
+        if (!text || text.length === 0) return '';
+        return atob(text);
+    }
 }
 
 /**
@@ -26,13 +34,13 @@ export class ProviderStorage {
             const request = indexedDB.open(this.dbName, this.version);
 
             request.onerror = () => {
-                console.error("IndexedDB error:", request.error);
+                console.error('IndexedDB error:', request.error);
                 reject(request.error);
             };
 
             request.onsuccess = () => {
                 this.db = request.result;
-                this.db.onerror = (event) => console.error("Generic DB Error:", event.target.error);
+                this.db.onerror = (event) => console.error('Generic DB Error:', event.target.error);
                 resolve(this.db);
             };
 
@@ -62,9 +70,9 @@ export class ProviderStorage {
 
     async saveProvider(provider) {
         const db = await this.ensureDB();
-        const providerData = { ...provider.toJSON() };
-        
-        if (providerData.apiKey) {
+        const providerData = provider.toJSON ? provider.toJSON() : provider;
+
+        if (providerData.apiKey && providerData.apiKey.length > 0) {
             providerData.apiKey = await this.encryption.encrypt(providerData.apiKey);
             providerData.isEncrypted = true;
         }
@@ -88,11 +96,11 @@ export class ProviderStorage {
             request.onsuccess = async () => {
                 const data = request.result;
                 if (data) {
-                    if (data.isEncrypted && data.apiKey) {
+                    if (data.isEncrypted && data.apiKey && data.apiKey.length > 0) {
                         try {
                             data.apiKey = await this.encryption.decrypt(data.apiKey);
                         } catch (e) {
-                            console.error("Decrypt fail", e);
+                            console.error('Decrypt fail', e);
                             data.apiKey = '';
                         }
                     }
@@ -116,11 +124,12 @@ export class ProviderStorage {
                 const providersData = request.result;
                 const providers = await Promise.all(
                     providersData.map(async (data) => {
-                        if (data.isEncrypted && data.apiKey) {
+                        if (data.isEncrypted && data.apiKey && data.apiKey.length > 0) {
                             try {
                                 data.apiKey = await this.encryption.decrypt(data.apiKey);
                             } catch (e) {
                                 data.apiKey = '';
+                                console.warn(e);
                             }
                         }
                         return this._sanitizeData(data);
@@ -159,6 +168,11 @@ export class ProviderStorage {
         });
     }
 
+    // Alias for saveActiveProvider to match test expectations
+    async setActiveProvider(providerId) {
+        return this.saveActiveProvider(providerId);
+    }
+
     async getActiveProvider() {
         const db = await this.ensureDB();
         return new Promise((resolve, reject) => {
@@ -184,8 +198,8 @@ export class ProviderStorage {
      */
     async initializeDefaultProviders() {
         const providers = await this.getAllProviders();
-        // Return what we have, even if empty. 
+        // Return what we have, even if empty.
         // Logic to "Create OpenRouter" has been removed.
-        return providers; 
+        return providers;
     }
 }

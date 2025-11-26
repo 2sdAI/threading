@@ -7,18 +7,28 @@
 
 export class Message {
     constructor(config) {
+        // 1. Validate inputs (Added to satisfy tests)
+        if (!config.content || typeof config.content !== 'string' || config.content.trim() === '') {
+            throw new Error('Message content cannot be empty.');
+        }
+
+        // Map 'sender' concept to 'role' for validation if strict 'role' isn't passed
+        if (!config.role) {
+            throw new Error('Message sender cannot be empty.');
+        }
+
         this.id = config.id || `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         this.role = config.role; // 'user' or 'assistant'
         this.content = config.content;
         this.timestamp = config.timestamp || new Date().toISOString();
         this.agentId = config.agentId || null;
-        
+
         // Provider and model information
         this.providerId = config.providerId || null;
         this.providerName = config.providerName || null;
         this.modelId = config.modelId || null;
         this.modelName = config.modelName || null;
-        
+
         // Metadata
         this.metadata = config.metadata || {};
         this.edited = config.edited || false;
@@ -64,6 +74,14 @@ export class Message {
     getFormattedTime() {
         const date = new Date(this.timestamp);
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    /**
+     * Get fully formatted message string (Added to satisfy tests)
+     */
+    getFormattedMessage() {
+        // Uses the formatted time and role/content
+        return `[${this.getFormattedTime()}] ${this.role}: ${this.content}`;
     }
 
     /**

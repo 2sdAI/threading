@@ -9,7 +9,7 @@ import { AIProvider } from './ai-provider.js';
 
 export const ProviderFactory = {
     createCustom: (config) => new AIProvider(config),
-    
+
     createFromTemplate: (type, apiKey) => {
         const templates = {
             openai: {
@@ -98,7 +98,13 @@ export const ProviderFactory = {
         };
 
         const t = templates[type];
-        if (!t) return new AIProvider({ type: 'custom', models: [] });
+        if (!t) {
+            return new AIProvider({
+                type: 'custom',
+                models: [],
+                apiKey: apiKey
+            });
+        }
 
         return new AIProvider({
             ...t,
