@@ -1,11 +1,19 @@
+// js/modules/provider-storage.js
+
 import { AIProvider } from './ai-provider.js';
 
 /**
  * Simple Encryption Manager
  */
 class EncryptionManager {
-    async encrypt(text) { return btoa(text); }
-    async decrypt(text) { return atob(text); }
+    async encrypt(text) { 
+        if (!text || text.length === 0) return '';
+        return btoa(text); 
+    }
+    async decrypt(text) { 
+        if (!text || text.length === 0) return '';
+        return atob(text); 
+    }
 }
 
 /**
@@ -64,7 +72,7 @@ export class ProviderStorage {
         const db = await this.ensureDB();
         const providerData = { ...provider.toJSON() };
 
-        if (providerData.apiKey) {
+        if (providerData.apiKey && providerData.apiKey.length > 0) {
             providerData.apiKey = await this.encryption.encrypt(providerData.apiKey);
             providerData.isEncrypted = true;
         }
@@ -88,7 +96,7 @@ export class ProviderStorage {
             request.onsuccess = async () => {
                 const data = request.result;
                 if (data) {
-                    if (data.isEncrypted && data.apiKey) {
+                    if (data.isEncrypted && data.apiKey && data.apiKey.length > 0) {
                         try {
                             data.apiKey = await this.encryption.decrypt(data.apiKey);
                         } catch (e) {
@@ -116,7 +124,7 @@ export class ProviderStorage {
                 const providersData = request.result;
                 const providers = await Promise.all(
                     providersData.map(async (data) => {
-                        if (data.isEncrypted && data.apiKey) {
+                        if (data.isEncrypted && data.apiKey && data.apiKey.length > 0) {
                             try {
                                 data.apiKey = await this.encryption.decrypt(data.apiKey);
                             } catch (e) {
@@ -158,6 +166,11 @@ export class ProviderStorage {
             transaction.oncomplete = () => resolve();
             transaction.onerror = () => reject(transaction.error);
         });
+    }
+
+    // Alias for saveActiveProvider to match test expectations
+    async setActiveProvider(providerId) {
+        return this.saveActiveProvider(providerId);
     }
 
     async getActiveProvider() {
