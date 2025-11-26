@@ -16,13 +16,13 @@ export class Message {
         this.content = config.content;
         this.timestamp = config.timestamp || new Date().toISOString();
         this.agentId = config.agentId || null;
-        
+
         // Provider and model information
         this.providerId = config.providerId || null;
         this.providerName = config.providerName || null;
         this.modelId = config.modelId || null;
         this.modelName = config.modelName || null;
-        
+
         // Metadata
         this.metadata = config.metadata || {};
         this.edited = config.edited || false;
@@ -107,16 +107,16 @@ export class Chat {
         this.id = config.id || `chat-${Date.now()}`;
         this.projectId = config.projectId || null;
         this.title = config.title || 'New Chat';
-        this.messages = (config.messages || []).map(m => 
+        this.messages = (config.messages || []).map(m =>
             m instanceof Message ? m : Message.fromJSON(m)
         );
         this.createdAt = config.createdAt || new Date().toISOString();
         this.updatedAt = config.updatedAt || new Date().toISOString();
-        
+
         // Default provider and model for this chat
         this.defaultProviderId = config.defaultProviderId || null;
         this.defaultModelId = config.defaultModelId || null;
-        
+
         // Chat metadata
         this.metadata = config.metadata || {};
         this.archived = config.archived || false;

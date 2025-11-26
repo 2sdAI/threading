@@ -1,5 +1,5 @@
 // Update this version string to force a cache refresh for all users
-const APP_VERSION = 'v1.0.5'; 
+const APP_VERSION = 'v1.0.5';
 const CACHE_NAME = `ai-team-manager-${APP_VERSION}`;
 
 // Assets to cache for offline use
@@ -31,8 +31,8 @@ const ASSETS_TO_CACHE = [
 // Install: Cache core assets
 self.addEventListener('install', (event) => {
     console.log(`[SW] Installing version ${APP_VERSION}`);
-    self.skipWaiting(); 
-    
+    self.skipWaiting();
+
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
             console.log('[SW] Caching assets');
@@ -69,12 +69,12 @@ self.addEventListener('message', (event) => {
         console.log('[SW] Skip waiting requested');
         self.skipWaiting();
     }
-    
+
     // Sync relay: broadcast to all other clients
     if (event.data && event.data.type === 'sync-relay') {
         const syncMessage = event.data.syncMessage;
         console.log('[SW] Relaying sync message:', syncMessage.type);
-        
+
         // Broadcast to all clients (tabs and windows)
         self.clients.matchAll({ type: 'window' }).then(clients => {
             clients.forEach(client => {
@@ -89,11 +89,11 @@ self.addEventListener('message', (event) => {
             });
         });
     }
-    
+
     // Test relay for debugging
     if (event.data && event.data.type === 'test-relay') {
         console.log('[SW] Test relay:', event.data.data);
-        
+
         self.clients.matchAll({ type: 'window' }).then(clients => {
             clients.forEach(client => {
                 if (client.id !== event.source.id) {
@@ -112,11 +112,11 @@ self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
     // 1. Ignore API calls or non-GET methods (Network Only)
-    if (event.request.method !== 'GET' || 
-        url.pathname.includes('/api/') || 
+    if (event.request.method !== 'GET' ||
+        url.pathname.includes('/api/') ||
         url.pathname.includes('chat/completions') ||
         url.pathname.includes('/messages')) {
-        return; 
+        return;
     }
 
     // 2. For HTML requests, use network-first strategy to get updates faster

@@ -26,13 +26,13 @@ export class ProviderStorage {
             const request = indexedDB.open(this.dbName, this.version);
 
             request.onerror = () => {
-                console.error("IndexedDB error:", request.error);
+                console.error('IndexedDB error:', request.error);
                 reject(request.error);
             };
 
             request.onsuccess = () => {
                 this.db = request.result;
-                this.db.onerror = (event) => console.error("Generic DB Error:", event.target.error);
+                this.db.onerror = (event) => console.error('Generic DB Error:', event.target.error);
                 resolve(this.db);
             };
 
@@ -63,7 +63,7 @@ export class ProviderStorage {
     async saveProvider(provider) {
         const db = await this.ensureDB();
         const providerData = { ...provider.toJSON() };
-        
+
         if (providerData.apiKey) {
             providerData.apiKey = await this.encryption.encrypt(providerData.apiKey);
             providerData.isEncrypted = true;
@@ -92,7 +92,7 @@ export class ProviderStorage {
                         try {
                             data.apiKey = await this.encryption.decrypt(data.apiKey);
                         } catch (e) {
-                            console.error("Decrypt fail", e);
+                            console.error('Decrypt fail', e);
                             data.apiKey = '';
                         }
                     }
@@ -121,6 +121,7 @@ export class ProviderStorage {
                                 data.apiKey = await this.encryption.decrypt(data.apiKey);
                             } catch (e) {
                                 data.apiKey = '';
+                                console.warn(e);
                             }
                         }
                         return this._sanitizeData(data);
@@ -184,8 +185,8 @@ export class ProviderStorage {
      */
     async initializeDefaultProviders() {
         const providers = await this.getAllProviders();
-        // Return what we have, even if empty. 
+        // Return what we have, even if empty.
         // Logic to "Create OpenRouter" has been removed.
-        return providers; 
+        return providers;
     }
 }

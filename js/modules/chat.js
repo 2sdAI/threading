@@ -12,16 +12,16 @@ export class Chat {
         this.id = config.id || `chat-${Date.now()}`;
         this.projectId = config.projectId || null;
         this.title = config.title || 'New Chat';
-        this.messages = (config.messages || []).map(m => 
+        this.messages = (config.messages || []).map(m =>
             m instanceof Message ? m : Message.fromJSON(m)
         );
         this.createdAt = config.createdAt || new Date().toISOString();
         this.updatedAt = config.updatedAt || new Date().toISOString();
-        
+
         // Default provider and model for this chat
         this.defaultProviderId = config.defaultProviderId || null;
         this.defaultModelId = config.defaultModelId || null;
-        
+
         // Chat metadata
         this.metadata = config.metadata || {};
         this.archived = config.archived || false;

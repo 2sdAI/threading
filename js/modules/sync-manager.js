@@ -12,7 +12,7 @@ export class SyncManager {
         this.serviceWorkerReady = false;
         this.broadcastChannel = null;
         this.lastProcessedTimestamp = 0;
-        
+
         this.init();
     }
 
@@ -60,7 +60,7 @@ export class SyncManager {
                 console.log('✅ Service Worker controlling page');
             } else {
                 console.log('⏳ Waiting for Service Worker to control page (reload page to activate)');
-                
+
                 // Wait for controller to be available
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
                     this.serviceWorkerReady = true;
@@ -73,7 +73,7 @@ export class SyncManager {
                 if (event.data && event.data.type && event.data.type.startsWith('sync-')) {
                     const originalType = event.data.type.replace('sync-', '');
                     console.log('📨 SW sync:', originalType);
-                    
+
                     this.handleSyncMessage({
                         type: originalType,
                         data: event.data.data,
@@ -98,7 +98,7 @@ export class SyncManager {
         };
 
         console.log('📤 Broadcasting:', type);
-        let sentVia = [];
+        const sentVia = [];
 
         // 1. Try Service Worker first (best for cross-window)
         if (this.serviceWorkerReady && navigator.serviceWorker.controller) {
@@ -145,23 +145,23 @@ export class SyncManager {
                 case 'chat-created':
                     await this.handleChatCreated(message.data);
                     break;
-                
+
                 case 'chat-updated':
                     await this.handleChatUpdated(message.data);
                     break;
-                
+
                 case 'chat-deleted':
                     await this.handleChatDeleted(message.data);
                     break;
-                
+
                 case 'message-added':
                     await this.handleMessageAdded(message.data);
                     break;
-                
+
                 case 'provider-updated':
                     await this.handleProviderUpdated(message.data);
                     break;
-                
+
                 case 'settings-changed':
                     await this.handleSettingsChanged(message.data);
                     break;
@@ -177,7 +177,7 @@ export class SyncManager {
     /**
      * Handle chat created in another tab/window
      */
-    async handleChatCreated(data) {
+    async handleChatCreated() {
         await this.chatManager.loadChats();
         if (window.ui) {
             window.ui.renderSidebar();
@@ -189,7 +189,7 @@ export class SyncManager {
      */
     async handleChatUpdated(data) {
         await this.chatManager.loadChats();
-        
+
         if (window.ui && this.chatManager.currentChatId === data.chatId) {
             const chat = this.chatManager.getCurrentChat();
             if (chat) {
@@ -197,7 +197,7 @@ export class SyncManager {
                 window.ui.renderMessages(chat.messages);
             }
         }
-        
+
         if (window.ui) {
             window.ui.renderSidebar();
         }
@@ -208,14 +208,14 @@ export class SyncManager {
      */
     async handleChatDeleted(data) {
         await this.chatManager.loadChats();
-        
+
         if (this.chatManager.currentChatId === data.chatId) {
             this.chatManager.currentChatId = null;
             if (window.ui) {
                 window.ui.showView('welcomeView');
             }
         }
-        
+
         if (window.ui) {
             window.ui.renderSidebar();
         }
@@ -246,7 +246,7 @@ export class SyncManager {
     /**
      * Handle provider settings updated in another tab/window
      */
-    async handleProviderUpdated(data) {
+    async handleProviderUpdated() {
         if (window.ui && window.ui.currentView === 'chatView') {
             const chat = this.chatManager.getCurrentChat();
             if (chat) {
@@ -262,7 +262,7 @@ export class SyncManager {
     /**
      * Handle general settings changed
      */
-    async handleSettingsChanged(data) {
+    async handleSettingsChanged(_data) {
         console.log('Settings changed in another tab/window');
     }
 
@@ -271,13 +271,13 @@ export class SyncManager {
      */
     async onTabFocus() {
         console.log('🔄 Tab focused, refreshing data...');
-        
+
         try {
             await this.chatManager.loadChats();
-            
+
             if (window.ui) {
                 window.ui.renderSidebar();
-                
+
                 if (this.chatManager.currentChatId) {
                     const chat = this.chatManager.getCurrentChat();
                     if (chat) {

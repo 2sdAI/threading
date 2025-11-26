@@ -22,14 +22,14 @@ export class ChatStorage {
             const request = indexedDB.open(this.dbName, this.version);
 
             request.onerror = () => {
-                console.error("IndexedDB error:", request.error);
+                console.error('IndexedDB error:', request.error);
                 reject(request.error);
             };
 
             request.onsuccess = () => {
                 this.db = request.result;
                 this.db.onerror = (event) => {
-                    console.error("Database Error:", event.target.error);
+                    console.error('Database Error:', event.target.error);
                 };
                 resolve(this.db);
             };
@@ -104,7 +104,7 @@ export class ChatStorage {
         return new Promise((resolve, reject) => {
             const transaction = db.transaction(['chats'], 'readwrite');
             const store = transaction.objectStore('chats');
-            
+
             chats.forEach(chat => {
                 store.put(chat.toJSON());
             });
@@ -202,7 +202,7 @@ export class ChatStorage {
         return new Promise((resolve, reject) => {
             const transaction = db.transaction(['chats'], 'readwrite');
             const store = transaction.objectStore('chats');
-            
+
             ids.forEach(id => {
                 store.delete(id);
             });
@@ -314,7 +314,7 @@ export class ChatStorage {
      */
     async getChatStats() {
         const chats = await this.getAllChats();
-        
+
         return {
             total: chats.length,
             archived: chats.filter(c => c.archived).length,

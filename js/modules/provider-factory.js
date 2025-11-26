@@ -9,7 +9,7 @@ import { AIProvider } from './ai-provider.js';
 
 export const ProviderFactory = {
     createCustom: (config) => new AIProvider(config),
-    
+
     createFromTemplate: (type, apiKey) => {
         const templates = {
             openai: {

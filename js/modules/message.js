@@ -12,13 +12,13 @@ export class Message {
         this.content = config.content;
         this.timestamp = config.timestamp || new Date().toISOString();
         this.agentId = config.agentId || null;
-        
+
         // Provider and model information
         this.providerId = config.providerId || null;
         this.providerName = config.providerName || null;
         this.modelId = config.modelId || null;
         this.modelName = config.modelName || null;
-        
+
         // Metadata
         this.metadata = config.metadata || {};
         this.edited = config.edited || false;

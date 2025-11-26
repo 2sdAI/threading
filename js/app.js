@@ -32,11 +32,11 @@ async function initApp() {
     try {
         chatManager = new ChatManager();
         ui = new UIManager(chatManager);
-        
+
         window.chatManager = chatManager;
         window.ui = ui;
 
-        ui.init(); 
+        ui.init();
 
         console.log('⚙️ Connecting to Database...');
         await chatManager.init();
@@ -47,13 +47,13 @@ async function initApp() {
         window.syncManager = syncManager;
 
         await chatManager.providerStorage.initializeDefaultProviders();
-        
+
         if (chatManager.currentChatId) {
             await window.loadChat(chatManager.currentChatId);
         } else {
             ui.renderSidebar();
         }
-        
+
         console.log('✅ App Ready');
         lucide.createIcons();
 
@@ -76,7 +76,7 @@ window.createNewChat = async function() {
         const chat = await chatManager.createChat();
         await window.loadChat(chat.id);
         ui.notify('New chat created', 'success');
-        
+
         // Broadcast to other tabs
         if (syncManager) {
             syncManager.broadcast('chat-created', { chatId: chat.id });
@@ -119,12 +119,12 @@ window.clearChat = async function() {
         const chat = chatManager.getCurrentChat();
         ui.renderMessages(chat.messages);
         ui.notify('Chat cleared', 'success');
-        
+
         // Broadcast to other windows
         if (syncManager) {
             syncManager.broadcast('chat-updated', { chatId: chatId });
         }
-    } catch (e) { ui.notify('Error clearing chat', 'error'); }
+    } catch (_e) { ui.notify('Error clearing chat', _e); }
 };
 
 window.sendMessage = async function() {
@@ -140,7 +140,7 @@ window.sendMessage = async function() {
     ui.renderMessages(chat.messages);
     ui.clearInput();
     ui.showTypingIndicator();
-    
+
     // Broadcast user message to other tabs
     if (syncManager) {
         syncManager.broadcast('message-added', { chatId: chat.id });
@@ -149,22 +149,22 @@ window.sendMessage = async function() {
     try {
         const pId = document.getElementById('chatProviderSelect').value;
         const mId = document.getElementById('chatModelSelect').value;
-        
+
         const response = await chatManager.sendToAI(text, pId, mId);
         document.getElementById('typing')?.remove();
 
         await chatManager.addMessage(chat.id, new Message({
-            role: 'assistant', 
+            role: 'assistant',
             content: response.content,
-            providerId: response.providerId, 
+            providerId: response.providerId,
             providerName: response.providerName,
-            modelId: response.modelId, 
+            modelId: response.modelId,
             modelName: response.modelName
         }));
-        
+
         ui.renderMessages(chat.messages);
         ui.renderSidebar();
-        
+
         // Broadcast AI response to other tabs
         if (syncManager) {
             syncManager.broadcast('message-added', { chatId: chat.id });
@@ -192,11 +192,11 @@ window.showChatSettings = async function() {
 
     // Populate modal
     document.getElementById('chatSettingsTitle').value = chat.title;
-    
+
     // Populate provider dropdown
     const providerSelect = document.getElementById('chatSettingsProvider');
     const providers = await chatManager.providerStorage.getEnabledProviders();
-    
+
     providerSelect.innerHTML = '<option value="">Use global active provider</option>';
     providers.forEach(p => {
         const option = document.createElement('option');
@@ -207,7 +207,7 @@ window.showChatSettings = async function() {
     });
 
     // Populate model dropdown
-    await updateChatSettingsModels();
+    await window.updateChatSettingsModels();
 
     // Show modal
     ui.showModal('chatSettingsModal');
@@ -217,7 +217,7 @@ window.updateChatSettingsModels = async function() {
     const providerId = document.getElementById('chatSettingsProvider').value;
     const modelSelect = document.getElementById('chatSettingsModel');
     const chat = chatManager.getCurrentChat();
-    
+
     if (!providerId) {
         modelSelect.innerHTML = '<option value="">Use provider\'s default model</option>';
         return;
@@ -248,7 +248,7 @@ window.saveChatSettings = async function() {
     if (title) {
         await chatManager.updateChatTitle(chat.id, title);
     }
-    
+
     if (providerId) {
         await chatManager.updateChatProvider(chat.id, providerId, modelId);
     }
@@ -257,7 +257,7 @@ window.saveChatSettings = async function() {
     ui.updateChatHeader(chat);
     await updateChatProviderSelectors();
     ui.notify('Chat settings saved', 'success');
-    
+
     // Broadcast to other windows
     if (syncManager) {
         syncManager.broadcast('chat-updated', { chatId: chat.id });
@@ -303,12 +303,12 @@ window.renderProviders = async function() {
     const container = document.getElementById('providersList');
     const providers = await chatManager.providerStorage.getAllProviders();
     const activeId = await chatManager.providerStorage.getActiveProvider();
-    
+
     if (providers.length === 0) {
         container.innerHTML = '<div class="text-white/40 text-center p-8 border border-dashed border-white/20 rounded-xl">No providers. Add one!</div>';
         return;
     }
-    
+
     container.innerHTML = '';
     providers.forEach(p => {
         const isActive = p.id === activeId;
@@ -357,9 +357,9 @@ window.saveProvider = async function() {
     const apiKey = document.getElementById('providerModalApiKey').value.trim();
     const defaultModel = document.getElementById('providerModalDefaultModel').value.trim();
     const enabled = document.getElementById('providerModalEnabled').checked;
-    
+
     if (!name || !apiUrl) return ui.notify('Name and URL required', 'error');
-    
+
     // Collect models
     const models = [];
     document.querySelectorAll('#providerModalModels [data-index]').forEach(row => {
@@ -392,27 +392,27 @@ window.saveProvider = async function() {
             }
         } else {
             // Creating new provider
-            provider = ProviderFactory.createCustom({ 
-                name, 
-                type, 
-                apiUrl, 
-                apiKey, 
-                defaultModel, 
+            provider = ProviderFactory.createCustom({
+                name,
+                type,
+                apiUrl,
+                apiKey,
+                defaultModel,
                 models,
-                enabled 
+                enabled
             });
         }
-        
+
         await chatManager.providerStorage.saveProvider(provider);
         ui.notify('Provider saved!', 'success');
         document.getElementById('providerModal').style.display = 'none';
         window.renderProviders();
-        
+
         // Broadcast to other tabs
         if (syncManager) {
             syncManager.broadcast('provider-updated', { providerId: provider.id });
         }
-        
+
         // Update selector if in chat
         if (chatManager.currentChatId) {
             await updateChatProviderSelectors();
@@ -445,27 +445,27 @@ window.editProvider = async function(id) {
     if (provider.models && provider.models.length > 0) {
         provider.models.forEach(m => addProviderModelRow(m));
     }
-    
+
     document.getElementById('providerModal').style.display = 'flex';
 };
 
 window.deleteProviderPrompt = async function(id) {
     if (!ensureReady()) return;
     if (!confirm('Delete this provider?')) return;
-    
+
     const activeId = await chatManager.providerStorage.getActiveProvider();
     await chatManager.providerStorage.deleteProvider(id);
-    
+
     if (id === activeId) {
         const remaining = await chatManager.providerStorage.getAllProviders();
         if (remaining.length > 0) {
             await chatManager.providerStorage.saveActiveProvider(remaining[0].id);
         }
     }
-    
+
     ui.notify('Provider deleted', 'success');
     window.renderProviders();
-    
+
     // Broadcast to other tabs
     if (syncManager) {
         syncManager.broadcast('provider-updated', { providerId: id, deleted: true });
@@ -492,7 +492,7 @@ window.testProvider = async function() {
     const apiKey = document.getElementById('providerModalApiKey').value.trim();
     const type = document.getElementById('providerModalType').value;
     const defaultModel = document.getElementById('providerModalDefaultModel').value;
-    
+
     // If editing and no new key provided, get existing key
     const providerId = document.getElementById('providerModalId').value;
     let testKey = apiKey;
@@ -500,9 +500,9 @@ window.testProvider = async function() {
         const existing = await chatManager.providerStorage.getProvider(providerId);
         if (existing) testKey = existing.apiKey;
     }
-    
+
     if (!apiUrl || !testKey) return ui.notify('URL and API Key required for test', 'error');
-    
+
     try {
         ui.notify('Testing connection...', 'info');
         const p = ProviderFactory.createCustom({ name: 'Test', type, apiUrl, apiKey: testKey, defaultModel });
@@ -544,24 +544,24 @@ async function updateChatProviderSelectors() {
 
 // --- EVENT HANDLERS ---
 window.closeProviderModal = () => document.getElementById('providerModal').style.display = 'none';
-window.addProviderModel = () => addProviderModelRow({id:'', name:'', description:''});
+window.addProviderModel = () => addProviderModelRow({ id:'', name:'', description:'' });
 
 window.loadProviderTemplate = function() {
     const templateName = document.getElementById('providerModalTemplate').value;
     if (!templateName) return;
-    
+
     const template = ProviderFactory.getTemplate(templateName);
     if (template) {
         document.getElementById('providerModalName').value = template.name;
         document.getElementById('providerModalType').value = template.type;
         document.getElementById('providerModalApiUrl').value = template.apiUrl;
         document.getElementById('providerModalDefaultModel').value = template.defaultModel;
-        
+
         // Clear and populate models
         const container = document.getElementById('providerModalModels');
         container.innerHTML = '';
         template.models.forEach(m => addProviderModelRow(m));
-        
+
         ui.notify(`Loaded ${template.name} template`, 'success');
     }
 };
