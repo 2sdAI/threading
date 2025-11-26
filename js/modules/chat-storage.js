@@ -1,3 +1,5 @@
+import { Chat } from './chat.js';
+
 /**
  * ============================================
  * CHAT STORAGE WITH INDEXEDDB
@@ -5,7 +7,7 @@
  * Handles persistent storage of chats and messages using IndexedDB
  */
 
-class ChatStorage {
+export class ChatStorage {
     constructor() {
         this.dbName = 'AITeamManagerDB';
         this.version = 2;
@@ -325,9 +327,4 @@ class ChatStorage {
             totalMessages: chats.reduce((sum, c) => sum + c.getMessageCount(), 0)
         };
     }
-}
-
-// Export for use in main application
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { ChatStorage };
 }

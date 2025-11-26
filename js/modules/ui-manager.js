@@ -5,7 +5,7 @@
  * Centralized UI rendering and DOM manipulation
  */
 
-class UIManager {
+export class UIManager {
     constructor(chatManager) {
         this.chatManager = chatManager;
         this.currentView = null;
@@ -116,10 +116,6 @@ class UIManager {
         }
     }
 
-    // ... [Rest of the file remains the same: showView, renderSidebar, etc.] ...
-    // Ensure you copy the rest of the methods from your original file
-    // or I can provide the full file if needed, but brevity suggests keeping existing methods.
-    
     showView(viewId) {
         const views = ['welcomeView', 'chatView', 'settingsView', 'projectView'];
         views.forEach(id => {
@@ -515,9 +511,4 @@ class UIManager {
         `;
         lucide.createIcons();
     }
-}
-
-// Export for use in main application
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { UIManager };
 }

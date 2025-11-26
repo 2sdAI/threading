@@ -1,19 +1,22 @@
 // Update this version string to force a cache refresh for all users
-const APP_VERSION = 'v1.0.3'; 
+const APP_VERSION = 'v1.0.5'; 
 const CACHE_NAME = `ai-team-manager-${APP_VERSION}`;
 
 // Assets to cache for offline use
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
-    './styles.css',
-    './app.js',
-    './ui-manager.js',
-    './chat-manager.js',
-    './chat-classes.js',
-    './chat-storage.js',
-    './provider-storage.js',
-    './ai-provider.js',
+    './css/styles.css',
+    './js/app.js',
+    './js/modules/ui-manager.js',
+    './js/modules/sync-manager.js',
+    './js/modules/chat-manager.js',
+    './js/modules/chat.js',
+    './js/modules/message.js',
+    './js/modules/chat-storage.js',
+    './js/modules/provider-storage.js',
+    './js/modules/ai-provider.js',
+    './js/modules/provider-factory.js',
     './manifest.json',
     // External CDN Dependencies
     'https://cdn.tailwindcss.com',

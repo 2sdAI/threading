@@ -1,3 +1,5 @@
+import { AIProvider } from './ai-provider.js';
+
 /**
  * Simple Encryption Manager
  */
@@ -11,7 +13,7 @@ class EncryptionManager {
  * PROVIDER STORAGE WITH INDEXEDDB
  * ============================================
  */
-class ProviderStorage {
+export class ProviderStorage {
     constructor() {
         this.dbName = 'AITeamManagerDB';
         this.version = 2;

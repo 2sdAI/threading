@@ -6,7 +6,7 @@
  * Reliable cross-window sync that works immediately!
  */
 
-class SyncManager {
+export class SyncManager {
     constructor(chatManager) {
         this.chatManager = chatManager;
         this.serviceWorkerReady = false;
@@ -295,11 +295,8 @@ class SyncManager {
      * Cleanup
      */
     destroy() {
-        // Nothing to cleanup in Service Worker-only mode
+        if (this.broadcastChannel) {
+            this.broadcastChannel.close();
+        }
     }
-}
-
-// Export for use in main application
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { SyncManager };
 }

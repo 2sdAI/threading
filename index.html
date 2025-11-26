@@ -20,15 +20,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
     
     <link rel="stylesheet" href="css/styles.css">
-
-    <script src="js/modules/chat-classes.js"></script>
-    <script src="js/modules/ai-provider.js"></script>
-    <script src="js/modules/provider-storage.js"></script>
-    <script src="js/modules/chat-storage.js"></script>
-    <script src="js/sync-manager.js"></script>
-    
-    <script src="js/modules/chat-manager.js"></script>
-    <script src="js/ui-manager.js"></script>
 </head>
 <body>
     <div id="sidebarOverlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden" onclick="toggleSidebar()"></div>
@@ -322,7 +313,7 @@
         </div>
     </div>
 
-    <script src="js/app.js"></script>
+    <script type="module" src="js/app.js"></script>
 
     <script>
         if ('serviceWorker' in navigator) {

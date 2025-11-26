@@ -1,3 +1,9 @@
+import { ChatManager } from './modules/chat-manager.js';
+import { UIManager } from './modules/ui-manager.js';
+import { SyncManager } from './modules/sync-manager.js';
+import { ProviderFactory } from './modules/provider-factory.js';
+import { Message } from './modules/message.js';
+
 // Database Reset Utility
 window.resetDatabase = async function() {
     if (!confirm('⚠️ This will delete ALL data. Continue?')) return;
@@ -499,7 +505,7 @@ window.testProvider = async function() {
     
     try {
         ui.notify('Testing connection...', 'info');
-        const p = new AIProvider({ name: 'Test', type, apiUrl, apiKey: testKey, defaultModel });
+        const p = ProviderFactory.createCustom({ name: 'Test', type, apiUrl, apiKey: testKey, defaultModel });
         const res = await p.testConnection();
         if (res.success) ui.notify('Connection successful! ✓', 'success');
         else ui.notify('Connection failed: ' + res.message, 'error');

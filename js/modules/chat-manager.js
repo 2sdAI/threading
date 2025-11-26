@@ -1,3 +1,8 @@
+import { Chat } from './chat.js';
+import { Message } from './message.js';
+import { ChatStorage } from './chat-storage.js';
+import { ProviderStorage } from './provider-storage.js';
+
 /**
  * ============================================
  * CHAT MANAGER
@@ -5,7 +10,7 @@
  * Central manager for all chat-related operations, state, and persistence
  */
 
-class ChatManager {
+export class ChatManager {
     constructor(storage = new ChatStorage(), providerStorage = new ProviderStorage()) {
         this.storage = storage;
         this.providerStorage = providerStorage;
@@ -435,9 +440,4 @@ class ChatManager {
     getActiveChats() {
         return this.chats.filter(chat => !chat.archived);
     }
-}
-
-// Export for use in main application
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { ChatManager };
 }
