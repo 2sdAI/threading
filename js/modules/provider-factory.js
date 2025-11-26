@@ -98,7 +98,13 @@ export const ProviderFactory = {
         };
 
         const t = templates[type];
-        if (!t) return new AIProvider({ type: 'custom', models: [] });
+        if (!t) {
+            return new AIProvider({
+                type: 'custom',
+                models: [],
+                apiKey: apiKey
+            });
+        }
 
         return new AIProvider({
             ...t,
