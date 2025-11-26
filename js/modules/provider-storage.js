@@ -70,7 +70,7 @@ export class ProviderStorage {
 
     async saveProvider(provider) {
         const db = await this.ensureDB();
-        const providerData = { ...provider.toJSON() };
+        const providerData = provider.toJSON ? provider.toJSON() : provider;
 
         if (providerData.apiKey && providerData.apiKey.length > 0) {
             providerData.apiKey = await this.encryption.encrypt(providerData.apiKey);
