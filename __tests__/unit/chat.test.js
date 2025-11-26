@@ -6,53 +6,63 @@ describe('Chat', () => {
     let chat;
 
     beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2024-01-15T10:00:00Z'));
         chat = new Chat({
+            id: 'test-chat-123',
             title: 'Test Chat'
         });
     });
 
-    describe('constructor', () => {
-        it('should create a chat with default values', () => {
-            const newChat = new Chat({});
+    afterEach(() => {
+        vi.useRealTimers();
+    });
 
-            expect(newChat.id).toMatch(/^chat-\d+$/);
-            expect(newChat.title).toBe('New Chat');
-            expect(newChat.messages).toEqual([]);
-            expect(newChat.projectId).toBeNull();
-            expect(newChat.defaultProviderId).toBeNull();
-            expect(newChat.defaultModelId).toBeNull();
-            expect(newChat.metadata).toEqual({});
-            expect(newChat.archived).toBe(false);
-            expect(newChat.pinned).toBe(false);
-            expect(newChat.createdAt).toBeDefined();
-            expect(newChat.updatedAt).toBeDefined();
-        });
-
+    describe('Constructor', () => {
         it('should create a chat with provided config', () => {
             const config = {
                 id: 'custom-id',
-                projectId: 'project-123',
                 title: 'Custom Title',
+                projectId: 'project-1',
                 defaultProviderId: 'provider-1',
                 defaultModelId: 'model-1',
-                metadata: { key: 'value' },
                 archived: true,
-                pinned: true
+                pinned: true,
+                metadata: { custom: 'data' }
             };
 
             const customChat = new Chat(config);
 
             expect(customChat.id).toBe('custom-id');
-            expect(customChat.projectId).toBe('project-123');
             expect(customChat.title).toBe('Custom Title');
+            expect(customChat.projectId).toBe('project-1');
             expect(customChat.defaultProviderId).toBe('provider-1');
             expect(customChat.defaultModelId).toBe('model-1');
-            expect(customChat.metadata).toEqual({ key: 'value' });
             expect(customChat.archived).toBe(true);
             expect(customChat.pinned).toBe(true);
+            expect(customChat.metadata).toEqual({ custom: 'data' });
         });
 
-        it('should convert plain message objects to Message instances', () => {
+        it('should apply default values', () => {
+            const minimalChat = new Chat({});
+
+            expect(minimalChat.id).toMatch(/^chat-\d+$/);
+            expect(minimalChat.title).toBe('New Chat');
+            expect(minimalChat.projectId).toBeNull();
+            expect(minimalChat.defaultProviderId).toBeNull();
+            expect(minimalChat.defaultModelId).toBeNull();
+            expect(minimalChat.archived).toBe(false);
+            expect(minimalChat.pinned).toBe(false);
+            expect(minimalChat.metadata).toEqual({});
+            expect(minimalChat.messages).toEqual([]);
+        });
+
+        it('should set createdAt and updatedAt', () => {
+            expect(chat.createdAt).toBe('2024-01-15T10:00:00.000Z');
+            expect(chat.updatedAt).toBe('2024-01-15T10:00:00.000Z');
+        });
+
+        it('should convert message objects to Message instances', () => {
             const chatWithMessages = new Chat({
                 messages: [
                     { role: 'user', content: 'Hello' },
@@ -96,15 +106,22 @@ describe('Chat', () => {
 
         it('should update timestamp when adding message', () => {
             const originalTimestamp = chat.updatedAt;
-
-            // Wait a bit to ensure different timestamp
-            vi.useFakeTimers();
             vi.advanceTimersByTime(1000);
 
             chat.addMessage({ role: 'user', content: 'Hello' });
 
             expect(chat.updatedAt).not.toBe(originalTimestamp);
-            vi.useRealTimers();
+        });
+
+        it('should add multiple messages in sequence', () => {
+            chat.addMessage({ role: 'user', content: '1' });
+            chat.addMessage({ role: 'assistant', content: '2' });
+            chat.addMessage({ role: 'user', content: '3' });
+
+            expect(chat.messages).toHaveLength(3);
+            expect(chat.messages[0].content).toBe('1');
+            expect(chat.messages[1].content).toBe('2');
+            expect(chat.messages[2].content).toBe('3');
         });
     });
 
@@ -123,12 +140,10 @@ describe('Chat', () => {
 
         it('should return undefined for non-existent message ID', () => {
             const result = chat.updateMessage('non-existent-id', { content: 'Updated' });
-
             expect(result).toBeUndefined();
         });
 
         it('should update timestamp when updating message', () => {
-            vi.useFakeTimers();
             const originalTimestamp = chat.updatedAt;
             vi.advanceTimersByTime(1000);
 
@@ -136,7 +151,19 @@ describe('Chat', () => {
             chat.updateMessage(messageId, { content: 'Updated' });
 
             expect(chat.updatedAt).not.toBe(originalTimestamp);
-            vi.useRealTimers();
+        });
+
+        it('should update multiple properties at once', () => {
+            const messageId = chat.messages[0].id;
+            chat.updateMessage(messageId, {
+                content: 'Updated',
+                providerId: 'new-provider',
+                modelId: 'new-model'
+            });
+
+            expect(chat.messages[0].content).toBe('Updated');
+            expect(chat.messages[0].providerId).toBe('new-provider');
+            expect(chat.messages[0].modelId).toBe('new-model');
         });
     });
 
@@ -163,7 +190,6 @@ describe('Chat', () => {
         });
 
         it('should update timestamp when deleting message', () => {
-            vi.useFakeTimers();
             const originalTimestamp = chat.updatedAt;
             vi.advanceTimersByTime(1000);
 
@@ -171,7 +197,6 @@ describe('Chat', () => {
             chat.deleteMessage(messageId);
 
             expect(chat.updatedAt).not.toBe(originalTimestamp);
-            vi.useRealTimers();
         });
     });
 
@@ -226,7 +251,6 @@ describe('Chat', () => {
         });
 
         it('should update timestamp when clearing messages', () => {
-            vi.useFakeTimers();
             chat.addMessage({ role: 'user', content: 'Message' });
             const originalTimestamp = chat.updatedAt;
             vi.advanceTimersByTime(1000);
@@ -234,7 +258,6 @@ describe('Chat', () => {
             chat.clearMessages();
 
             expect(chat.updatedAt).not.toBe(originalTimestamp);
-            vi.useRealTimers();
         });
     });
 
@@ -247,14 +270,20 @@ describe('Chat', () => {
         });
 
         it('should update timestamp when setting provider', () => {
-            vi.useFakeTimers();
             const originalTimestamp = chat.updatedAt;
             vi.advanceTimersByTime(1000);
 
             chat.setDefaultProvider('provider-123', 'model-456');
 
             expect(chat.updatedAt).not.toBe(originalTimestamp);
-            vi.useRealTimers();
+        });
+
+        it('should allow null values', () => {
+            chat.setDefaultProvider('provider-1', 'model-1');
+            chat.setDefaultProvider(null, null);
+
+            expect(chat.defaultProviderId).toBeNull();
+            expect(chat.defaultModelId).toBeNull();
         });
     });
 
@@ -307,7 +336,7 @@ describe('Chat', () => {
             chat.generateAutoTitle();
 
             expect(chat.title).toBe('This is a very long message that exceeds fifty cha...');
-            expect(chat.title.length).toBe(53); // 50 + '...'
+            expect(chat.title.length).toBe(53);
         });
 
         it('should use first line only for multiline messages', () => {
@@ -325,6 +354,14 @@ describe('Chat', () => {
             chat.generateAutoTitle();
 
             expect(chat.title).toBe(originalTitle);
+        });
+
+        it('should handle empty first line with multiline', () => {
+            chat.addMessage({ role: 'user', content: '\nActual content' });
+
+            chat.generateAutoTitle();
+
+            expect(chat.title).toBe('');
         });
     });
 
@@ -380,6 +417,15 @@ describe('Chat', () => {
                 model: 'GPT-4'
             });
             expect(exported.messages[0].timestamp).toBeDefined();
+        });
+
+        it('should handle messages without provider info', () => {
+            chat.addMessage({ role: 'user', content: 'Hello' });
+
+            const exported = chat.exportChat();
+
+            expect(exported.messages[0].provider).toBeNull();
+            expect(exported.messages[0].model).toBeNull();
         });
     });
 
@@ -468,7 +514,6 @@ describe('Chat', () => {
 
     describe('updateTimestamp', () => {
         it('should update updatedAt to current time', () => {
-            vi.useFakeTimers();
             const initialTime = new Date('2024-01-01T00:00:00Z');
             vi.setSystemTime(initialTime);
 
@@ -481,7 +526,6 @@ describe('Chat', () => {
             testChat.updateTimestamp();
 
             expect(testChat.updatedAt).toBe(laterTime.toISOString());
-            vi.useRealTimers();
         });
     });
 
@@ -507,6 +551,35 @@ describe('Chat', () => {
             expect(restored.metadata).toEqual({ custom: 'data' });
             expect(restored.archived).toBe(true);
             expect(restored.pinned).toBe(true);
+        });
+    });
+
+    describe('Edge Cases', () => {
+        it('should default empty title to New Chat', () => {
+            // Chat constructor uses `config.title || 'New Chat'` so empty string defaults
+            const emptyTitleChat = new Chat({ title: '' });
+            expect(emptyTitleChat.title).toBe('New Chat');
+        });
+
+        it('should handle very long title', () => {
+            const longTitle = 'A'.repeat(1000);
+            const longTitleChat = new Chat({ title: longTitle });
+            expect(longTitleChat.title).toBe(longTitle);
+        });
+
+        it('should handle special characters in title', () => {
+            const specialTitle = '特殊字符 🎉 <script>';
+            const specialChat = new Chat({ title: specialTitle });
+            expect(specialChat.title).toBe(specialTitle);
+        });
+
+        it('should handle chat with many messages', () => {
+            for (let i = 0; i < 100; i++) {
+                chat.addMessage({ role: i % 2 === 0 ? 'user' : 'assistant', content: `Message ${i}` });
+            }
+
+            expect(chat.getMessageCount()).toBe(100);
+            expect(chat.getAIMessageCount()).toBe(50);
         });
     });
 });
