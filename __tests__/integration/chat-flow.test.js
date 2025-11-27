@@ -207,7 +207,7 @@ describe('Integration: Chat Flow', () => {
         const chat1 = await chatManager.createChat({ title: 'Export Test 1' });
         vi.setSystemTime(new Date(Date.now() + 10));
         await chatManager.addMessage(chat1.id, new Message({ role: 'user', content: 'Hello' }));
-        
+
         // FIX: Revert title because addMessage triggered auto-titling (renaming it to "Hello")
         await chatManager.updateChatTitle(chat1.id, 'Export Test 1');
 
