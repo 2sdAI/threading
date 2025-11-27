@@ -18,7 +18,10 @@ export default defineConfig({
                 'playwright-report/'
             ]
         },
-        include: ['__tests__/**/*.test.js'],
+        include: [
+            '__tests__/unit/**/*.test.js',
+            '__tests__/integration/**/*.test.js'
+        ],
         exclude: ['__tests__/e2e/**'],
         testTimeout: 10000
     },

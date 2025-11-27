@@ -41,6 +41,9 @@ Thumbs.db
 # Testing
 coverage/
 .nyc_output/
+test-results/
+playwright-report/
+.playwright/
 
 # Optional: If you add a backend later
 *.pyc
