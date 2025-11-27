@@ -199,28 +199,54 @@ describe('Integration: Chat Flow', () => {
     });
 
     it('should handle export and import', async () => {
+        // Start fresh - clear database and reload chatManager state
         await clearDatabase(chatStorage.db);
+        chatManager.chats = [];
 
+        // Create first chat
         const chat1 = await chatManager.createChat({ title: 'Export Test 1' });
         vi.setSystemTime(new Date(Date.now() + 10));
         await chatManager.addMessage(chat1.id, new Message({ role: 'user', content: 'Hello' }));
+        
+        // FIX: Revert title because addMessage triggered auto-titling (renaming it to "Hello")
+        await chatManager.updateChatTitle(chat1.id, 'Export Test 1');
 
+        // Advance time for unique ID
         vi.setSystemTime(new Date(Date.now() + 100));
 
+        // Create second chat
+        const chat2 = await chatManager.createChat({ title: 'Export Test 2' });
+        vi.setSystemTime(new Date(Date.now() + 10));
+        await chatManager.addMessage(chat2.id, new Message({ role: 'user', content: 'World' }));
+
+        // FIX: Revert title because addMessage triggered auto-titling
+        await chatManager.updateChatTitle(chat2.id, 'Export Test 2');
+
+        // Export all chats
         const exported = await chatManager.exportAllChats();
         expect(exported).toHaveLength(2);
 
+        // Clear database and reset chatManager state
         await clearDatabase(chatStorage.db);
+        chatManager.chats = [];
+
+        // Verify database is empty
         let remaining = await chatStorage.getAllChats();
         expect(remaining).toHaveLength(0);
 
+        // Import the exported chats
         await chatManager.importChats(exported);
 
+        // Verify import succeeded
         remaining = await chatStorage.getAllChats();
         expect(remaining).toHaveLength(2);
 
         const importedChat1 = remaining.find(c => c.title === 'Export Test 1');
         expect(importedChat1).toBeDefined();
         expect(importedChat1.messages).toHaveLength(1);
+
+        const importedChat2 = remaining.find(c => c.title === 'Export Test 2');
+        expect(importedChat2).toBeDefined();
+        expect(importedChat2.messages).toHaveLength(1);
     });
 });
