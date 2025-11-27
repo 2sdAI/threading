@@ -85,7 +85,7 @@ export class ChatManager {
     async createChat(config = {}) {
         // Get default provider if not specified
         if (!config.defaultProviderId) {
-            config.defaultProviderId = await this.providerStorage.getActiveProvider();
+            config.defaultProviderId = await this.providerStorage.getActiveProviderID();
         }
 
         // Get default model from provider
@@ -114,54 +114,27 @@ export class ChatManager {
     /**
      * Delete a chat
      */
-    async deleteChat(id) {
-        const index = this.chats.findIndex(chat => chat.id === id);
-        if (index === -1) return false;
+    async deleteChat(chatId) {
+        const index = this.chats.findIndex(c => c.id === chatId);
+        if (index === -1) return;
 
         this.chats.splice(index, 1);
-        await this.storage.deleteChat(id);
+        await this.storage.deleteChat(chatId);
 
-        // If we deleted the current chat, switch to another
-        if (this.currentChatId === id) {
-            const newChat = this.chats[0];
-            if (newChat) {
-                await this.setCurrentChat(newChat.id);
-            } else {
-                this.currentChatId = null;
-                await this.storage.saveCurrentChatId(null);
-            }
+        // Clear current chat if it was deleted
+        if (this.currentChatId === chatId) {
+            this.currentChatId = null;
+            await this.storage.saveCurrentChatId(null);
         }
-
-        return true;
     }
 
     /**
      * Delete multiple chats
      */
-    async deleteChats(ids) {
-        this.chats = this.chats.filter(chat => !ids.includes(chat.id));
-        await this.storage.deleteChats(ids);
-
-        // If we deleted the current chat, switch to another
-        if (ids.includes(this.currentChatId)) {
-            const newChat = this.chats[0];
-            if (newChat) {
-                await this.setCurrentChat(newChat.id);
-            } else {
-                this.currentChatId = null;
-                await this.storage.saveCurrentChatId(null);
-            }
+    async deleteChats(chatIds) {
+        for (const id of chatIds) {
+            await this.deleteChat(id);
         }
-    }
-
-    /**
-     * Clear all chats
-     */
-    async clearAllChats() {
-        this.chats = [];
-        this.currentChatId = null;
-        await this.storage.clearAllChats();
-        await this.storage.saveCurrentChatId(null);
     }
 
     /**
@@ -330,7 +303,7 @@ export class ChatManager {
         }
 
         // Determine which provider and model to use
-        const effectiveProviderId = providerId || chat.defaultProviderId || await this.providerStorage.getActiveProvider();
+        const effectiveProviderId = providerId || chat.defaultProviderId || await this.providerStorage.getActiveProviderID();
         if (!effectiveProviderId) {
             throw new Error('No AI provider configured');
         }

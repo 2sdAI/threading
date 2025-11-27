@@ -173,7 +173,11 @@ export class ProviderStorage {
         return this.saveActiveProvider(providerId);
     }
 
-    async getActiveProvider() {
+    /**
+     * Get the active provider ID only
+     * @returns {Promise<string|null>} The active provider ID or null if not set
+     */
+    async getActiveProviderID() {
         const db = await this.ensureDB();
         return new Promise((resolve, reject) => {
             const transaction = db.transaction(['settings'], 'readonly');
@@ -182,6 +186,18 @@ export class ProviderStorage {
             request.onsuccess = () => resolve(request.result?.value || null);
             request.onerror = () => reject(request.error);
         });
+    }
+
+    /**
+     * Get the active provider as a full AIProvider object
+     * @returns {Promise<AIProvider|null>} The active provider object or null if not set/found
+     */
+    async getActiveProvider() {
+        const activeId = await this.getActiveProviderID();
+        if (!activeId) {
+            return null;
+        }
+        return this.getProvider(activeId);
     }
 
     async saveProviderDefaultModel(providerId, modelId) {

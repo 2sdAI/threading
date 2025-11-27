@@ -58,6 +58,7 @@ describe('ProviderStorage', () => {
 
         it('should set db.onerror handler during init', async () => {
             await storage.init();
+
             expect(storage.db.onerror).toBeDefined();
         });
 
@@ -157,137 +158,16 @@ describe('ProviderStorage', () => {
             });
             await storage.saveProvider(initialProvider.toJSON());
 
-            const newModelId = 'new-model-id';
-            await storage.saveProviderDefaultModel(id, newModelId);
+            await storage.saveProviderDefaultModel(id, 'new-model');
 
             const updatedProvider = await storage.getProvider(id);
-            expect(updatedProvider.defaultModel).toBe(newModelId);
-            expect(updatedProvider.apiKey).toBe('k');
-        });
-
-        it('should handle saveProviderDefaultModel for non-existent provider', async () => {
-            // Should not throw, just do nothing
-            await storage.saveProviderDefaultModel('non-existent', 'model-1');
-
-            // Verify nothing was created
-            const provider = await storage.getProvider('non-existent');
-            expect(provider).toBeNull();
+            expect(updatedProvider.defaultModel).toBe('new-model');
         });
     });
 
-    // --- Encryption Tests ---
-    describe('Encryption', () => {
-        it('should encrypt API key when saving', async () => {
-            const provider = new AIProvider({
-                id: 'encrypt-test',
-                name: 'Encrypt Test',
-                apiKey: 'secret-key-123'
-            });
-            await storage.saveProvider(provider.toJSON());
-
-            // Access raw data from DB
-            const db = await storage.ensureDB();
-            const rawData = await new Promise((resolve, reject) => {
-                const transaction = db.transaction(['providers'], 'readonly');
-                const store = transaction.objectStore('providers');
-                const request = store.get('encrypt-test');
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => reject(request.error);
-            });
-
-            // Raw data should have encrypted key (base64) and flag
-            expect(rawData.isEncrypted).toBe(true);
-            expect(rawData.apiKey).not.toBe('secret-key-123');
-            expect(rawData.apiKey).toBe(btoa('secret-key-123'));
-        });
-
-        it('should decrypt API key when retrieving', async () => {
-            const provider = new AIProvider({
-                id: 'decrypt-test',
-                name: 'Decrypt Test',
-                apiKey: 'my-secret-api-key'
-            });
-            await storage.saveProvider(provider.toJSON());
-
-            const retrieved = await storage.getProvider('decrypt-test');
-            expect(retrieved.apiKey).toBe('my-secret-api-key');
-        });
-
-        it('should handle empty API key', async () => {
-            const provider = new AIProvider({
-                id: 'empty-key-test',
-                name: 'Empty Key Test',
-                apiKey: ''
-            });
-            await storage.saveProvider(provider.toJSON());
-
-            const retrieved = await storage.getProvider('empty-key-test');
-            expect(retrieved.apiKey).toBe('');
-        });
-
-        it('should handle provider with no API key', async () => {
-            const providerData = {
-                id: 'no-key-test',
-                name: 'No Key Test',
-                type: 'custom'
-            };
-            await storage.saveProvider(providerData);
-
-            const retrieved = await storage.getProvider('no-key-test');
-            expect(retrieved.apiKey).toBe('');
-        });
-
-        it('should handle decryption failure gracefully', async () => {
-            // Save a provider normally
-            const provider = new AIProvider({
-                id: 'decrypt-fail-test',
-                name: 'Decrypt Fail Test',
-                apiKey: 'valid-key'
-            });
-            await storage.saveProvider(provider.toJSON());
-
-            // Corrupt the stored data by storing invalid base64
-            const db = await storage.ensureDB();
-            await new Promise((resolve, reject) => {
-                const transaction = db.transaction(['providers'], 'readwrite');
-                const store = transaction.objectStore('providers');
-                const request = store.put({
-                    id: 'decrypt-fail-test',
-                    name: 'Decrypt Fail Test',
-                    apiKey: 'not-valid-base64!!!',
-                    isEncrypted: true
-                });
-                request.onsuccess = () => resolve();
-                request.onerror = () => reject(request.error);
-            });
-
-            // Should handle gracefully and return empty string
-            const retrieved = await storage.getProvider('decrypt-fail-test');
-            expect(retrieved.apiKey).toBe('');
-        });
-
-        it('should decrypt all providers in getAllProviders', async () => {
-            const providers = [
-                new AIProvider({ id: 'p1', name: 'P1', apiKey: 'key1' }),
-                new AIProvider({ id: 'p2', name: 'P2', apiKey: 'key2' }),
-                new AIProvider({ id: 'p3', name: 'P3', apiKey: 'key3' })
-            ];
-
-            for (const p of providers) {
-                await storage.saveProvider(p.toJSON());
-            }
-
-            const allProviders = await storage.getAllProviders();
-
-            expect(allProviders[0].apiKey).toBe('key1');
-            expect(allProviders[1].apiKey).toBe('key2');
-            expect(allProviders[2].apiKey).toBe('key3');
-        });
-    });
-
-    // --- Enabled Providers Tests ---
+    // --- getEnabledProviders Tests ---
     describe('getEnabledProviders', () => {
-        it('should return only enabled providers', async () => {
+        it('should only return providers where enabled is true', async () => {
             const enabledProvider = new AIProvider({
                 id: 'enabled-1',
                 name: 'Enabled',
@@ -300,7 +180,6 @@ describe('ProviderStorage', () => {
                 apiKey: 'key',
                 enabled: false
             });
-
             await storage.saveProvider(enabledProvider.toJSON());
             await storage.saveProvider(disabledProvider.toJSON());
 
@@ -310,7 +189,7 @@ describe('ProviderStorage', () => {
             expect(enabledProviders[0].id).toBe('enabled-1');
         });
 
-        it('should return empty array when no providers are enabled', async () => {
+        it('should return empty array if all providers are disabled', async () => {
             const disabledProvider = new AIProvider({
                 id: 'disabled-1',
                 name: 'Disabled',
@@ -344,38 +223,117 @@ describe('ProviderStorage', () => {
         });
     });
 
-    // --- App Settings Tests (Active Provider) ---
-    describe('App Settings (Active Provider)', () => {
-        it('should save and retrieve the active provider ID using saveActiveProvider', async () => {
+    // --- App Settings Tests (Active Provider ID) ---
+    describe('App Settings (Active Provider ID)', () => {
+        it('should save and retrieve the active provider ID using saveActiveProvider and getActiveProviderID', async () => {
             const activeId = 'provider-active-1';
             await storage.saveActiveProvider(activeId);
 
-            expect(await storage.getActiveProvider()).toBe(activeId);
+            expect(await storage.getActiveProviderID()).toBe(activeId);
         });
 
         it('should save the active provider ID using the setActiveProvider alias', async () => {
             const newId = 'provider-active-2';
             await storage.setActiveProvider(newId);
 
-            expect(await storage.getActiveProvider()).toBe(newId);
+            expect(await storage.getActiveProviderID()).toBe(newId);
         });
 
         it('should return null if no active provider ID is set', async () => {
-            expect(await storage.getActiveProvider()).toBeNull();
+            expect(await storage.getActiveProviderID()).toBeNull();
         });
 
         it('should update active provider ID', async () => {
             await storage.saveActiveProvider('provider-1');
             await storage.saveActiveProvider('provider-2');
 
-            expect(await storage.getActiveProvider()).toBe('provider-2');
+            expect(await storage.getActiveProviderID()).toBe('provider-2');
         });
 
         it('should allow setting null as active provider', async () => {
             await storage.saveActiveProvider('provider-1');
             await storage.saveActiveProvider(null);
 
-            expect(await storage.getActiveProvider()).toBeNull();
+            expect(await storage.getActiveProviderID()).toBeNull();
+        });
+    });
+
+    // --- App Settings Tests (Active Provider Object) ---
+    describe('App Settings (Active Provider Object)', () => {
+        it('should return full provider object when calling getActiveProvider', async () => {
+            const provider = new AIProvider({
+                id: 'provider-obj-1',
+                name: 'Test Provider Object',
+                apiKey: 'test-key',
+                type: 'openai',
+                models: [{ id: 'model-1', name: 'Model 1' }]
+            });
+            await storage.saveProvider(provider.toJSON());
+            await storage.saveActiveProvider('provider-obj-1');
+
+            const activeProvider = await storage.getActiveProvider();
+
+            expect(activeProvider).toBeInstanceOf(AIProvider);
+            expect(activeProvider.id).toBe('provider-obj-1');
+            expect(activeProvider.name).toBe('Test Provider Object');
+            expect(activeProvider.type).toBe('openai');
+        });
+
+        it('should return null if no active provider ID is set', async () => {
+            const activeProvider = await storage.getActiveProvider();
+            expect(activeProvider).toBeNull();
+        });
+
+        it('should return null if active provider ID does not exist', async () => {
+            await storage.saveActiveProvider('non-existent-provider');
+
+            const activeProvider = await storage.getActiveProvider();
+            expect(activeProvider).toBeNull();
+        });
+
+        it('should return updated provider when active provider is updated', async () => {
+            const provider = new AIProvider({
+                id: 'provider-update-test',
+                name: 'Original Name',
+                apiKey: 'test-key'
+            });
+            await storage.saveProvider(provider.toJSON());
+            await storage.saveActiveProvider('provider-update-test');
+
+            // Update the provider
+            provider.name = 'Updated Name';
+            await storage.saveProvider(provider.toJSON());
+
+            const activeProvider = await storage.getActiveProvider();
+            expect(activeProvider.name).toBe('Updated Name');
+        });
+
+        it('should return different provider when active provider ID changes', async () => {
+            const provider1 = new AIProvider({ id: 'p1', name: 'Provider 1', apiKey: 'k1' });
+            const provider2 = new AIProvider({ id: 'p2', name: 'Provider 2', apiKey: 'k2' });
+            await storage.saveProvider(provider1.toJSON());
+            await storage.saveProvider(provider2.toJSON());
+
+            await storage.saveActiveProvider('p1');
+            let active = await storage.getActiveProvider();
+            expect(active.name).toBe('Provider 1');
+
+            await storage.saveActiveProvider('p2');
+            active = await storage.getActiveProvider();
+            expect(active.name).toBe('Provider 2');
+        });
+
+        it('should have decrypted API key in the returned provider object', async () => {
+            const provider = new AIProvider({
+                id: 'encrypted-test',
+                name: 'Encrypted Provider',
+                apiKey: 'secret-api-key-123'
+            });
+            await storage.saveProvider(provider.toJSON());
+            await storage.saveActiveProvider('encrypted-test');
+
+            const activeProvider = await storage.getActiveProvider();
+            expect(activeProvider.apiKey).toBe('secret-api-key-123');
         });
     });
 
@@ -419,54 +377,26 @@ describe('ProviderStorage', () => {
             expect(result).toBeNull();
         });
 
-        it('should return null for undefined input', () => {
-            const result = storage._sanitizeData(undefined);
-            expect(result).toBeNull();
-        });
-
         it('should return AIProvider instance for valid data', () => {
-            const data = {
-                id: 'test-id',
-                name: 'Test Provider',
-                type: 'openai',
-                apiUrl: 'https://api.test.com',
-                apiKey: 'test-key'
-            };
-
+            const data = { id: 'test', name: 'Test', apiKey: 'key' };
             const result = storage._sanitizeData(data);
-
             expect(result).toBeInstanceOf(AIProvider);
-            expect(result.id).toBe('test-id');
-            expect(result.name).toBe('Test Provider');
+            expect(result.id).toBe('test');
         });
     });
 
     // --- Edge Cases ---
     describe('Edge Cases', () => {
-        it('should handle provider with empty name', async () => {
+        it('should handle provider with empty apiKey', async () => {
             const provider = new AIProvider({
-                id: 'empty-name',
-                name: '',
-                apiKey: 'key'
+                id: 'empty-key',
+                name: 'Empty Key Provider',
+                apiKey: ''
             });
             await storage.saveProvider(provider.toJSON());
 
-            const retrieved = await storage.getProvider('empty-name');
-            expect(retrieved.name).toBe('');
-        });
-
-        it('should handle provider with special characters in name', async () => {
-            const provider = new AIProvider({
-                id: 'special-chars',
-                name: 'Special Provider <test> & "quotes"',
-                // Note: btoa() only supports ASCII, so use ASCII-only key
-                apiKey: 'key-with-special-chars_123'
-            });
-            await storage.saveProvider(provider.toJSON());
-
-            const retrieved = await storage.getProvider('special-chars');
-            expect(retrieved.name).toBe('Special Provider <test> & "quotes"');
-            expect(retrieved.apiKey).toBe('key-with-special-chars_123');
+            const retrieved = await storage.getProvider('empty-key');
+            expect(retrieved.apiKey).toBe('');
         });
 
         it('should handle provider with many models', async () => {

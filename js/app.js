@@ -151,6 +151,7 @@ window.sendMessage = async function() {
         const mId = document.getElementById('chatModelSelect').value;
 
         const response = await chatManager.sendToAI(text, pId, mId);
+
         document.getElementById('typing')?.remove();
 
         await chatManager.addMessage(chat.id, new Message({
@@ -302,7 +303,7 @@ window.renderProviders = async function() {
     if (!ensureReady()) return;
     const container = document.getElementById('providersList');
     const providers = await chatManager.providerStorage.getAllProviders();
-    const activeId = await chatManager.providerStorage.getActiveProvider();
+    const activeId = await chatManager.providerStorage.getActiveProviderID();
 
     if (providers.length === 0) {
         container.innerHTML = '<div class="text-white/40 text-center p-8 border border-dashed border-white/20 rounded-xl">No providers. Add one!</div>';
@@ -453,7 +454,7 @@ window.deleteProviderPrompt = async function(id) {
     if (!ensureReady()) return;
     if (!confirm('Delete this provider?')) return;
 
-    const activeId = await chatManager.providerStorage.getActiveProvider();
+    const activeId = await chatManager.providerStorage.getActiveProviderID();
     await chatManager.providerStorage.deleteProvider(id);
 
     if (id === activeId) {

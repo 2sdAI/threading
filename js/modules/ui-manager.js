@@ -238,83 +238,61 @@ export class UIManager {
         container.innerHTML = messages.map((msg) => {
             const isUser = msg.role === 'user';
             const alignment = isUser ? 'justify-end' : 'justify-start';
-            const fadeClass = 'fade-in';
+            const bgColor = isUser ? 'bg-purple-600/30' : 'bg-white/10';
+            const borderColor = isUser ? 'border-purple-500/30' : 'border-white/10';
 
-            let agentBadge = '';
-            if (!isUser && msg.agentId) {
-                agentBadge = `
-                    <div class="agent-badge">
-                        <i data-lucide="bot" class="w-3 h-3"></i>
-                        Agent
-                    </div>
-                `;
+            // Format content with markdown
+            let formattedContent = msg.content;
+            if (typeof marked !== 'undefined') {
+                formattedContent = marked.parse(msg.content);
             }
 
-            let providerInfo = '';
-            if (!isUser && msg.providerName) {
-                providerInfo = `
-                    <div class="flex items-center gap-2 text-xs text-white/50 mt-2">
-                        <i data-lucide="cpu" class="w-3 h-3"></i>
-                        <span>${this.escapeHtml(msg.providerName)} · ${this.escapeHtml(msg.modelName || msg.modelId)}</span>
-                    </div>
-                `;
-            }
-
-            const content = isUser ? this.escapeHtml(msg.content) : this.renderMarkdown(msg.content);
+            const providerInfo = msg.providerName
+                ? `<span class="text-xs text-white/40 mt-2 block">${this.escapeHtml(msg.providerName)} · ${this.escapeHtml(msg.modelName || '')}</span>`
+                : '';
 
             return `
-                <div class="message message-${msg.role} flex ${alignment} mb-4 ${fadeClass}" data-message-id="${msg.id}">
-                    <div class="message-bubble">
-                        ${agentBadge}
-                        <div class="message-content">${content}</div>
+                <div class="flex ${alignment} mb-4">
+                    <div class="max-w-[85%] ${bgColor} border ${borderColor} rounded-xl px-4 py-3">
+                        <div class="prose prose-invert prose-sm max-w-none">${formattedContent}</div>
                         ${providerInfo}
-                        <div class="text-xs text-white/40 mt-2">${msg.getFormattedTime()}</div>
                     </div>
                 </div>
             `;
         }).join('');
 
-        container.querySelectorAll('pre code').forEach((block) => {
-            Prism.highlightElement(block);
-        });
+        // Apply syntax highlighting
+        if (typeof Prism !== 'undefined') {
+            Prism.highlightAllUnder(container);
+        }
 
         lucide.createIcons();
         this.scrollToBottom();
-    }
-
-    renderMarkdown(content) {
-        try {
-            return marked.parse(content);
-        } catch (e) {
-            console.error('Markdown parse error:', e);
-            return this.escapeHtml(content);
-        }
     }
 
     showTypingIndicator() {
         const container = document.getElementById('messagesContainer');
         if (!container) return;
 
-        const typing = document.createElement('div');
-        typing.id = 'typing';
-        typing.className = 'flex justify-start mb-4 fade-in';
-        typing.innerHTML = `
-            <div class="message-bubble" style="background: rgba(102, 126, 234, 0.15);">
-                <div class="flex items-center gap-2">
-                    <div class="typing-dots">
-                        <span></span><span></span><span></span>
-                    </div>
-                    <span class="text-white/60 text-sm">Thinking...</span>
+        const indicator = document.createElement('div');
+        indicator.id = 'typing';
+        indicator.className = 'flex justify-start mb-4';
+        indicator.innerHTML = `
+            <div class="bg-white/10 border border-white/10 rounded-xl px-4 py-3">
+                <div class="flex gap-1">
+                    <span class="w-2 h-2 bg-white/60 rounded-full animate-bounce" style="animation-delay: 0ms"></span>
+                    <span class="w-2 h-2 bg-white/60 rounded-full animate-bounce" style="animation-delay: 150ms"></span>
+                    <span class="w-2 h-2 bg-white/60 rounded-full animate-bounce" style="animation-delay: 300ms"></span>
                 </div>
             </div>
         `;
-        container.appendChild(typing);
+        container.appendChild(indicator);
         this.scrollToBottom();
     }
 
     notify(message, type = 'info') {
         const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 z-[200] px-4 py-3 rounded-lg shadow-lg text-white fade-in ${
+        notification.className = `fixed top-4 right-4 z-[100] px-4 py-3 rounded-lg text-white shadow-lg fade-in ${
             type === 'error' ? 'bg-red-500' :
                 type === 'success' ? 'bg-green-500' :
                     'bg-blue-500'
@@ -448,7 +426,7 @@ export class UIManager {
 
         let selectedProviderId = chat.defaultProviderId;
         if (!selectedProviderId) {
-            const activeId = await this.chatManager.providerStorage.getActiveProvider();
+            const activeId = await this.chatManager.providerStorage.getActiveProviderID();
             selectedProviderId = activeId || providers[0].id;
         }
         // Check if the provider actually exists in list (might have been deleted)

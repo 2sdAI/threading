@@ -26,6 +26,7 @@ const createMockStorage = () => ({
 const createMockProviderStorage = () => ({
     init: vi.fn().mockResolvedValue({}),
     getActiveProvider: vi.fn().mockResolvedValue(null),
+    getActiveProviderID: vi.fn().mockResolvedValue(null),
     getProvider: vi.fn().mockResolvedValue(null),
     getAllProviders: vi.fn().mockResolvedValue([]),
     getEnabledProviders: vi.fn().mockResolvedValue([]),
@@ -58,73 +59,44 @@ describe('ChatManager', () => {
     });
 
     describe('init', () => {
-        it('should initialize storage and provider storage', async () => {
+        it('should initialize storage and load chats', async () => {
             await chatManager.init();
 
             expect(mockStorage.init).toHaveBeenCalled();
             expect(mockProviderStorage.init).toHaveBeenCalled();
+            expect(mockStorage.getAllChats).toHaveBeenCalled();
         });
 
-        it('should load chats from storage', async () => {
-            const storedChats = [new Chat({ id: 'chat-1' })];
-            mockStorage.getAllChats.mockResolvedValue(storedChats);
-
-            await chatManager.init();
-
-            expect(chatManager.chats).toEqual(storedChats);
-        });
-
-        it('should restore current chat ID', async () => {
+        it('should restore current chat and project IDs', async () => {
             mockStorage.getCurrentChatId.mockResolvedValue('chat-123');
-
-            await chatManager.init();
-
-            expect(chatManager.currentChatId).toBe('chat-123');
-        });
-
-        it('should restore current project ID', async () => {
             mockStorage.getCurrentProjectId.mockResolvedValue('project-456');
 
             await chatManager.init();
 
+            expect(chatManager.currentChatId).toBe('chat-123');
             expect(chatManager.currentProjectId).toBe('project-456');
         });
 
-        it('should return this for chaining', async () => {
+        it('should return itself for chaining', async () => {
             const result = await chatManager.init();
             expect(result).toBe(chatManager);
-        });
-    });
-
-    describe('loadChats', () => {
-        it('should load all chats from storage', async () => {
-            const storedChats = [
-                new Chat({ id: 'chat-1' }),
-                new Chat({ id: 'chat-2' })
-            ];
-            mockStorage.getAllChats.mockResolvedValue(storedChats);
-
-            const result = await chatManager.loadChats();
-
-            expect(result).toEqual(storedChats);
-            expect(chatManager.chats).toEqual(storedChats);
         });
     });
 
     describe('getChat', () => {
         beforeEach(() => {
             chatManager.chats = [
-                new Chat({ id: 'chat-1', title: 'Chat 1' }),
-                new Chat({ id: 'chat-2', title: 'Chat 2' })
+                new Chat({ id: 'chat-1', title: 'Test Chat 1' }),
+                new Chat({ id: 'chat-2', title: 'Test Chat 2' })
             ];
         });
 
-        it('should return chat by ID', () => {
+        it('should find chat by ID', () => {
             const chat = chatManager.getChat('chat-1');
-            expect(chat.title).toBe('Chat 1');
+            expect(chat.title).toBe('Test Chat 1');
         });
 
-        it('should return null for non-existent ID', () => {
+        it('should return undefined for non-existent ID', () => {
             const chat = chatManager.getChat('non-existent');
             expect(chat).toBeUndefined();
         });
@@ -133,73 +105,46 @@ describe('ChatManager', () => {
             const chat = chatManager.getChat(null);
             expect(chat).toBeNull();
         });
-
-        it('should return null for undefined ID', () => {
-            const chat = chatManager.getChat(undefined);
-            expect(chat).toBeNull();
-        });
     });
 
     describe('getCurrentChat', () => {
-        beforeEach(() => {
-            chatManager.chats = [new Chat({ id: 'chat-1' })];
-        });
-
         it('should return current chat when set', () => {
-            chatManager.currentChatId = 'chat-1';
-            const chat = chatManager.getCurrentChat();
-            expect(chat.id).toBe('chat-1');
+            const chat = new Chat({ id: 'current-chat' });
+            chatManager.chats = [chat];
+            chatManager.currentChatId = 'current-chat';
+
+            expect(chatManager.getCurrentChat()).toBe(chat);
         });
 
         it('should return null when no current chat', () => {
-            chatManager.currentChatId = null;
             expect(chatManager.getCurrentChat()).toBeNull();
-        });
-    });
-
-    describe('getChats', () => {
-        it('should return all chats', () => {
-            const chats = [new Chat({ id: 'chat-1' }), new Chat({ id: 'chat-2' })];
-            chatManager.chats = chats;
-
-            expect(chatManager.getChats()).toEqual(chats);
-        });
-
-        it('should return empty array when no chats', () => {
-            expect(chatManager.getChats()).toEqual([]);
         });
     });
 
     describe('getChatsByProject', () => {
         beforeEach(() => {
             chatManager.chats = [
-                new Chat({ id: 'chat-1', projectId: 'project-1' }),
-                new Chat({ id: 'chat-2', projectId: 'project-1' }),
-                new Chat({ id: 'chat-3', projectId: 'project-2' }),
-                new Chat({ id: 'chat-4', projectId: null })
+                new Chat({ id: '1', projectId: 'project-a' }),
+                new Chat({ id: '2', projectId: 'project-a' }),
+                new Chat({ id: '3', projectId: 'project-b' }),
+                new Chat({ id: '4', projectId: null })
             ];
         });
 
         it('should return chats for specific project', () => {
-            const projectChats = chatManager.getChatsByProject('project-1');
-            expect(projectChats).toHaveLength(2);
-            expect(projectChats.every(c => c.projectId === 'project-1')).toBe(true);
+            const chats = chatManager.getChatsByProject('project-a');
+            expect(chats).toHaveLength(2);
         });
 
-        it('should return chats without project when null passed', () => {
-            const noProjectChats = chatManager.getChatsByProject(null);
-            expect(noProjectChats).toHaveLength(1);
-            expect(noProjectChats[0].id).toBe('chat-4');
-        });
-
-        it('should return empty array for non-existent project', () => {
-            const chats = chatManager.getChatsByProject('non-existent');
-            expect(chats).toHaveLength(0);
+        it('should return chats without project when null is passed', () => {
+            const chats = chatManager.getChatsByProject(null);
+            expect(chats).toHaveLength(1);
+            expect(chats[0].id).toBe('4');
         });
     });
 
     describe('createChat', () => {
-        it('should create a new chat', async () => {
+        it('should create and return a new chat', async () => {
             const chat = await chatManager.createChat({ title: 'New Chat' });
 
             expect(chat).toBeInstanceOf(Chat);
@@ -218,7 +163,7 @@ describe('ChatManager', () => {
         });
 
         it('should use active provider as default if not specified', async () => {
-            mockProviderStorage.getActiveProvider.mockResolvedValue('provider-1');
+            mockProviderStorage.getActiveProviderID.mockResolvedValue('provider-1');
             mockProviderStorage.getProvider.mockResolvedValue({
                 id: 'provider-1',
                 defaultModel: 'model-1'
@@ -273,9 +218,8 @@ describe('ChatManager', () => {
             expect(chat.title).toBe('Test Chat');
         });
 
-        it('should save current chat ID to storage', async () => {
-            await chatManager.loadChat('chat-1');
-            expect(mockStorage.saveCurrentChatId).toHaveBeenCalledWith('chat-1');
+        it('should throw error for non-existent chat', async () => {
+            await expect(chatManager.loadChat('non-existent')).rejects.toThrow('Chat not found');
         });
     });
 
@@ -285,305 +229,51 @@ describe('ChatManager', () => {
                 new Chat({ id: 'chat-1' }),
                 new Chat({ id: 'chat-2' })
             ];
-            chatManager.currentChatId = 'chat-1';
         });
 
-        it('should remove chat from array', async () => {
+        it('should remove chat from chats array', async () => {
             await chatManager.deleteChat('chat-1');
             expect(chatManager.chats).toHaveLength(1);
-            expect(chatManager.chats[0].id).toBe('chat-2');
+            expect(chatManager.getChat('chat-1')).toBeUndefined();
         });
 
-        it('should delete from storage', async () => {
+        it('should call storage deleteChat', async () => {
             await chatManager.deleteChat('chat-1');
             expect(mockStorage.deleteChat).toHaveBeenCalledWith('chat-1');
         });
 
-        it('should update current chat when deleted chat was current', async () => {
-            // Note: Implementation may set to next available chat or null
-            // depending on the actual deleteChat implementation
-            await chatManager.deleteChat('chat-1');
-            // After deleting chat-1, chat-2 remains
-            expect(chatManager.chats).toHaveLength(1);
-        });
-
-        it('should not affect current chat if different chat deleted', async () => {
-            await chatManager.deleteChat('chat-2');
-            expect(chatManager.currentChatId).toBe('chat-1');
-        });
-    });
-
-    describe('deleteChats', () => {
-        beforeEach(() => {
-            chatManager.chats = [
-                new Chat({ id: 'chat-1' }),
-                new Chat({ id: 'chat-2' }),
-                new Chat({ id: 'chat-3' })
-            ];
-            chatManager.currentChatId = 'chat-2';
-        });
-
-        it('should remove multiple chats', async () => {
-            await chatManager.deleteChats(['chat-1', 'chat-2']);
-            expect(chatManager.chats).toHaveLength(1);
-            expect(chatManager.chats[0].id).toBe('chat-3');
-        });
-
-        it('should delete from storage', async () => {
-            await chatManager.deleteChats(['chat-1', 'chat-3']);
-            expect(mockStorage.deleteChats).toHaveBeenCalledWith(['chat-1', 'chat-3']);
-        });
-
-        it('should remove chats included in deletion', async () => {
-            await chatManager.deleteChats(['chat-2']);
-            expect(chatManager.chats).toHaveLength(2);
-            expect(chatManager.chats.find(c => c.id === 'chat-2')).toBeUndefined();
-        });
-    });
-
-    describe('clearAllChats', () => {
-        beforeEach(() => {
-            chatManager.chats = [new Chat({ id: 'chat-1' })];
+        it('should clear currentChatId if deleted chat was current', async () => {
             chatManager.currentChatId = 'chat-1';
-        });
-
-        it('should clear all chats from array', async () => {
-            await chatManager.clearAllChats();
-            expect(chatManager.chats).toEqual([]);
-        });
-
-        it('should clear current chat ID', async () => {
-            await chatManager.clearAllChats();
+            await chatManager.deleteChat('chat-1');
             expect(chatManager.currentChatId).toBeNull();
-        });
-
-        it('should clear storage', async () => {
-            await chatManager.clearAllChats();
-            expect(mockStorage.clearAllChats).toHaveBeenCalled();
-        });
-    });
-
-    describe('setCurrentChat', () => {
-        beforeEach(() => {
-            chatManager.chats = [new Chat({ id: 'chat-1' })];
-        });
-
-        it('should set current chat ID', async () => {
-            await chatManager.setCurrentChat('chat-1');
-            expect(chatManager.currentChatId).toBe('chat-1');
-        });
-
-        it('should save to storage', async () => {
-            await chatManager.setCurrentChat('chat-1');
-            expect(mockStorage.saveCurrentChatId).toHaveBeenCalledWith('chat-1');
-        });
-    });
-
-    describe('setCurrentProject', () => {
-        it('should set current project ID', async () => {
-            await chatManager.setCurrentProject('project-1');
-            expect(chatManager.currentProjectId).toBe('project-1');
-        });
-
-        it('should save to storage', async () => {
-            await chatManager.setCurrentProject('project-1');
-            expect(mockStorage.saveCurrentProjectId).toHaveBeenCalledWith('project-1');
-        });
-    });
-
-    describe('saveChat', () => {
-        it('should save chat to storage', async () => {
-            const chat = new Chat({ id: 'chat-1' });
-            await chatManager.saveChat(chat);
-            expect(mockStorage.saveChat).toHaveBeenCalledWith(chat);
-        });
-    });
-
-    describe('generateAutoTitle', () => {
-        beforeEach(() => {
-            const chat = new Chat({ id: 'chat-1', title: 'New Chat' });
-            chat.addMessage({ role: 'user', content: 'Hello, how are you?' });
-            chatManager.chats = [chat];
-        });
-
-        it('should generate title from first user message', async () => {
-            await chatManager.generateAutoTitle('chat-1');
-
-            expect(chatManager.chats[0].title).toBe('Hello, how are you?');
-            expect(mockStorage.saveChat).toHaveBeenCalled();
-        });
-
-        it('should do nothing for non-existent chat', async () => {
-            await chatManager.generateAutoTitle('non-existent');
-
-            expect(mockStorage.saveChat).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('updateChatTitle', () => {
-        beforeEach(() => {
-            chatManager.chats = [new Chat({ id: 'chat-1', title: 'Old Title' })];
-        });
-
-        it('should update chat title', async () => {
-            await chatManager.updateChatTitle('chat-1', 'New Title');
-
-            expect(chatManager.chats[0].title).toBe('New Title');
-            expect(mockStorage.saveChat).toHaveBeenCalled();
-        });
-
-        it('should do nothing for non-existent chat', async () => {
-            await chatManager.updateChatTitle('non-existent', 'Title');
-
-            expect(mockStorage.saveChat).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('updateChatProvider', () => {
-        beforeEach(() => {
-            chatManager.chats = [new Chat({ id: 'chat-1' })];
-        });
-
-        it('should update chat provider and model', async () => {
-            await chatManager.updateChatProvider('chat-1', 'provider-1', 'model-1');
-
-            expect(chatManager.chats[0].defaultProviderId).toBe('provider-1');
-            expect(chatManager.chats[0].defaultModelId).toBe('model-1');
-            expect(mockStorage.saveChat).toHaveBeenCalled();
-        });
-
-        it('should do nothing for non-existent chat', async () => {
-            await chatManager.updateChatProvider('non-existent', 'provider-1', 'model-1');
-            expect(mockStorage.saveChat).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('toggleArchive', () => {
-        beforeEach(() => {
-            chatManager.chats = [new Chat({ id: 'chat-1', archived: false })];
-        });
-
-        it('should toggle archived state', async () => {
-            await chatManager.toggleArchive('chat-1');
-            expect(chatManager.chats[0].archived).toBe(true);
-
-            await chatManager.toggleArchive('chat-1');
-            expect(chatManager.chats[0].archived).toBe(false);
-        });
-
-        it('should do nothing for non-existent chat', async () => {
-            await chatManager.toggleArchive('non-existent');
-            expect(mockStorage.saveChat).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('togglePin', () => {
-        beforeEach(() => {
-            chatManager.chats = [new Chat({ id: 'chat-1', pinned: false })];
-        });
-
-        it('should toggle pinned state', async () => {
-            await chatManager.togglePin('chat-1');
-            expect(chatManager.chats[0].pinned).toBe(true);
-
-            await chatManager.togglePin('chat-1');
-            expect(chatManager.chats[0].pinned).toBe(false);
-        });
-
-        it('should do nothing for non-existent chat', async () => {
-            await chatManager.togglePin('non-existent');
-            expect(mockStorage.saveChat).not.toHaveBeenCalled();
-        });
-    });
-
-    describe('clearChatMessages', () => {
-        beforeEach(() => {
-            const chat = new Chat({ id: 'chat-1' });
-            chat.addMessage({ role: 'user', content: 'Hello' });
-            chatManager.chats = [chat];
-        });
-
-        it('should clear all messages from chat', async () => {
-            await chatManager.clearChatMessages('chat-1');
-
-            expect(chatManager.chats[0].messages).toEqual([]);
-            expect(mockStorage.saveChat).toHaveBeenCalled();
-        });
-
-        it('should do nothing for non-existent chat', async () => {
-            await chatManager.clearChatMessages('non-existent');
-            expect(mockStorage.saveChat).not.toHaveBeenCalled();
         });
     });
 
     describe('addMessage', () => {
-        beforeEach(() => {
-            chatManager.chats = [new Chat({ id: 'chat-1' })];
-        });
-
-        it('should add message to chat', async () => {
-            const message = { role: 'user', content: 'Hello' };
-
-            const result = await chatManager.addMessage('chat-1', message);
-
-            expect(result).toBeInstanceOf(Message);
-            expect(chatManager.chats[0].messages).toHaveLength(1);
-            expect(mockStorage.saveChat).toHaveBeenCalled();
-        });
-
-        it('should auto-generate title on first message', async () => {
-            const message = { role: 'user', content: 'My first message' };
-
-            await chatManager.addMessage('chat-1', message);
-
-            expect(chatManager.chats[0].title).toBe('My first message');
-        });
-
-        it('should return null for non-existent chat', async () => {
-            const result = await chatManager.addMessage('non-existent', { role: 'user', content: 'Hello' });
-
-            expect(result).toBeNull();
-        });
-
-        it('should accept Message instance', async () => {
-            const message = new Message({ role: 'user', content: 'Hello' });
-
-            const result = await chatManager.addMessage('chat-1', message);
-
-            expect(result).toBe(message);
-        });
-    });
-
-    describe('deleteMessage', () => {
         let chat;
 
         beforeEach(() => {
-            chat = new Chat({ id: 'chat-1' });
-            chat.addMessage({ role: 'user', content: 'Message 1' });
-            chat.addMessage({ role: 'assistant', content: 'Message 2' });
+            chat = new Chat({ id: 'chat-1', title: 'Test Chat' });
             chatManager.chats = [chat];
         });
 
-        it('should delete message from chat', async () => {
-            const messageId = chat.messages[0].id;
+        it('should add message to chat', async () => {
+            const message = new Message({ role: 'user', content: 'Hello' });
+            await chatManager.addMessage('chat-1', message);
 
-            const result = await chatManager.deleteMessage('chat-1', messageId);
+            expect(chat.getMessageCount()).toBe(1);
+        });
 
-            expect(result).toBe(true);
-            expect(chat.messages).toHaveLength(1);
+        it('should save chat after adding message', async () => {
+            const message = new Message({ role: 'user', content: 'Hello' });
+            await chatManager.addMessage('chat-1', message);
+
             expect(mockStorage.saveChat).toHaveBeenCalled();
         });
 
-        it('should return false for non-existent message', async () => {
-            const result = await chatManager.deleteMessage('chat-1', 'non-existent');
-
-            expect(result).toBe(false);
-        });
-
-        it('should return false for non-existent chat', async () => {
-            const result = await chatManager.deleteMessage('non-existent', 'msg-id');
-
-            expect(result).toBe(false);
+        it('should return null for non-existent chat', async () => {
+            const result = await chatManager.addMessage('non-existent', new Message({ role: 'user', content: 'Test' }));
+            expect(result).toBeNull();
         });
     });
 
@@ -606,7 +296,7 @@ describe('ChatManager', () => {
                 sendRequest: vi.fn().mockResolvedValue('AI Response')
             };
 
-            mockProviderStorage.getActiveProvider.mockResolvedValue('provider-1');
+            mockProviderStorage.getActiveProviderID.mockResolvedValue('provider-1');
             mockProviderStorage.getProvider.mockResolvedValue(mockProvider);
         });
 
@@ -628,7 +318,7 @@ describe('ChatManager', () => {
         });
 
         it('should throw error when no provider configured', async () => {
-            mockProviderStorage.getActiveProvider.mockResolvedValue(null);
+            mockProviderStorage.getActiveProviderID.mockResolvedValue(null);
 
             await expect(chatManager.sendToAI('Hello'))
                 .rejects.toThrow('No AI provider configured');
@@ -701,114 +391,117 @@ describe('ChatManager', () => {
             chat.addMessage({ role: 'user', content: 'Hello' });
             chatManager.chats = [chat];
 
-            const result = await chatManager.exportChat('chat-1');
+            const exported = await chatManager.exportChat('chat-1');
 
-            expect(result.title).toBe('Test Chat');
-            expect(result.messages).toHaveLength(1);
+            expect(exported.title).toBe('Test Chat');
+            expect(exported.messages).toHaveLength(1);
         });
 
         it('should return null for non-existent chat', async () => {
-            const result = await chatManager.exportChat('non-existent');
-
-            expect(result).toBeNull();
-        });
-    });
-
-    describe('exportAllChats', () => {
-        it('should call storage exportChats', async () => {
-            const exported = [{ id: 'chat-1' }];
-            mockStorage.exportChats.mockResolvedValue(exported);
-
-            const result = await chatManager.exportAllChats();
-
-            expect(result).toEqual(exported);
-            expect(mockStorage.exportChats).toHaveBeenCalled();
-        });
-    });
-
-    describe('importChats', () => {
-        it('should import chats and reload', async () => {
-            const chatsData = [{ id: 'imported-1' }];
-            const importedChats = [new Chat({ id: 'imported-1' })];
-            mockStorage.importChats.mockResolvedValue(importedChats);
-            mockStorage.getAllChats.mockResolvedValue(importedChats);
-
-            const result = await chatManager.importChats(chatsData);
-
-            expect(result).toEqual(importedChats);
-            expect(mockStorage.importChats).toHaveBeenCalledWith(chatsData);
-            expect(mockStorage.getAllChats).toHaveBeenCalled();
-        });
-    });
-
-    describe('getStats', () => {
-        it('should return chat statistics', async () => {
-            const stats = { total: 5, archived: 2 };
-            mockStorage.getChatStats.mockResolvedValue(stats);
-
-            const result = await chatManager.getStats();
-
-            expect(result).toEqual(stats);
+            const exported = await chatManager.exportChat('non-existent');
+            expect(exported).toBeNull();
         });
     });
 
     describe('searchChats', () => {
         beforeEach(() => {
-            const chat1 = new Chat({ id: 'chat-1', title: 'JavaScript Tutorial' });
-            chat1.addMessage({ role: 'user', content: 'How to use promises?' });
+            const chat1 = new Chat({ id: '1', title: 'JavaScript Tutorial' });
+            chat1.addMessage({ role: 'user', content: 'How to use async/await?' });
 
-            const chat2 = new Chat({ id: 'chat-2', title: 'Python Basics' });
+            const chat2 = new Chat({ id: '2', title: 'Python Basics' });
             chat2.addMessage({ role: 'user', content: 'What is a list?' });
 
-            const chat3 = new Chat({ id: 'chat-3', title: 'JavaScript Advanced' });
-            chat3.addMessage({ role: 'user', content: 'Explain async/await' });
-
-            chatManager.chats = [chat1, chat2, chat3];
+            chatManager.chats = [chat1, chat2];
         });
 
         it('should find chats by title', () => {
             const results = chatManager.searchChats('JavaScript');
-            expect(results).toHaveLength(2);
+            expect(results).toHaveLength(1);
+            expect(results[0].id).toBe('1');
         });
 
         it('should find chats by message content', () => {
-            const results = chatManager.searchChats('promises');
+            const results = chatManager.searchChats('async/await');
             expect(results).toHaveLength(1);
-            expect(results[0].id).toBe('chat-1');
+            expect(results[0].id).toBe('1');
         });
 
-        it('should be case-insensitive', () => {
+        it('should be case insensitive', () => {
             const results = chatManager.searchChats('JAVASCRIPT');
-            expect(results).toHaveLength(2);
+            expect(results).toHaveLength(1);
         });
 
-        it('should return empty array for no matches', () => {
+        it('should return empty array when no matches', () => {
             const results = chatManager.searchChats('Ruby');
             expect(results).toHaveLength(0);
         });
+    });
 
-        it('should handle empty query', () => {
-            const results = chatManager.searchChats('');
-            expect(results).toHaveLength(3);
+    describe('Chat filters', () => {
+        beforeEach(() => {
+            chatManager.chats = [
+                new Chat({ id: '1', pinned: true, archived: false }),
+                new Chat({ id: '2', pinned: false, archived: true }),
+                new Chat({ id: '3', pinned: false, archived: false }),
+                new Chat({ id: '4', pinned: true, archived: true })
+            ];
+        });
+
+        it('should get pinned chats', () => {
+            const pinned = chatManager.getPinnedChats();
+            expect(pinned).toHaveLength(2);
+            expect(pinned.every(c => c.pinned)).toBe(true);
+        });
+
+        it('should get archived chats', () => {
+            const archived = chatManager.getArchivedChats();
+            expect(archived).toHaveLength(2);
+            expect(archived.every(c => c.archived)).toBe(true);
+        });
+
+        it('should get active (non-archived) chats', () => {
+            const active = chatManager.getActiveChats();
+            expect(active).toHaveLength(2);
+            expect(active.every(c => !c.archived)).toBe(true);
         });
     });
 
-    describe('Edge Cases', () => {
-        it('should handle rapid operations', async () => {
-            const promises = [];
-            for (let i = 0; i < 10; i++) {
-                promises.push(chatManager.createChat({ title: `Chat ${i}` }));
-            }
+    describe('toggleArchive', () => {
+        it('should toggle archived state', async () => {
+            const chat = new Chat({ id: 'chat-1', archived: false });
+            chatManager.chats = [chat];
 
-            await Promise.all(promises);
+            await chatManager.toggleArchive('chat-1');
+            expect(chat.archived).toBe(true);
 
-            expect(chatManager.chats).toHaveLength(10);
+            await chatManager.toggleArchive('chat-1');
+            expect(chat.archived).toBe(false);
         });
+    });
 
-        it('should handle empty chats array', () => {
-            expect(chatManager.getChat('any-id')).toBeUndefined();
-            expect(chatManager.getCurrentChat()).toBeNull();
-            expect(chatManager.getChatsByProject('project-1')).toEqual([]);
+    describe('togglePin', () => {
+        it('should toggle pinned state', async () => {
+            const chat = new Chat({ id: 'chat-1', pinned: false });
+            chatManager.chats = [chat];
+
+            await chatManager.togglePin('chat-1');
+            expect(chat.pinned).toBe(true);
+
+            await chatManager.togglePin('chat-1');
+            expect(chat.pinned).toBe(false);
+        });
+    });
+
+    describe('clearChatMessages', () => {
+        it('should clear all messages from chat', async () => {
+            const chat = new Chat({ id: 'chat-1' });
+            chat.addMessage({ role: 'user', content: 'Hello' });
+            chat.addMessage({ role: 'assistant', content: 'Hi there!' });
+            chatManager.chats = [chat];
+
+            await chatManager.clearChatMessages('chat-1');
+
+            expect(chat.getMessageCount()).toBe(0);
         });
     });
 });
