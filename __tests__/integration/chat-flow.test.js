@@ -158,7 +158,6 @@ describe('Integration: Chat Flow', () => {
         const chatWithProject = await chatManager.createChat({ title: 'Project Chat', projectId });
 
         vi.setSystemTime(new Date(Date.now() + 10));
-        const chatWithoutProject = await chatManager.createChat({ title: 'No Project Chat' });
 
         const projectChats = chatManager.getChatsByProject(projectId);
         expect(projectChats).toHaveLength(1);
@@ -207,7 +206,6 @@ describe('Integration: Chat Flow', () => {
         await chatManager.addMessage(chat1.id, new Message({ role: 'user', content: 'Hello' }));
 
         vi.setSystemTime(new Date(Date.now() + 100));
-        const chat2 = await chatManager.createChat({ title: 'Export Test 2' });
 
         const exported = await chatManager.exportAllChats();
         expect(exported).toHaveLength(2);
