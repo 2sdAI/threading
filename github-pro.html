@@ -1,0 +1,2742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Pro Client - Visual Git Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#7c3aed',
+                        'primary-dark': '#6d28d9',
+                        secondary: '#06b6d4',
+                        accent: '#f59e0b',
+                        surface: '#1e1b2e',
+                        'surface-light': '#2d2a42',
+                        'surface-lighter': '#3d3a56',
+                        'surface-dark': '#13111d',
+                        'text-primary': '#f4f4f5',
+                        'text-secondary': '#a1a1aa',
+                        'branch-main': '#22c55e',
+                        'branch-feature': '#3b82f6',
+                        'branch-hotfix': '#ef4444',
+                        'branch-release': '#f59e0b',
+                        'branch-develop': '#8b5cf6',
+                    },
+                    fontFamily: {
+                        'display': ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+                        'mono': ['"JetBrains Mono"', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * {
+            font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+        }
+        
+        code, pre, .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 5px currentColor, 0 0 10px currentColor; }
+            50% { box-shadow: 0 0 15px currentColor, 0 0 25px currentColor; }
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        @keyframes graph-draw {
+            from { stroke-dashoffset: 1000; }
+            to { stroke-dashoffset: 0; }
+        }
+        
+        .spinner { animation: spin 1s linear infinite; }
+        .toast { animation: slideIn 0.3s ease; }
+        .fade-in { animation: fadeIn 0.3s ease; }
+        
+        .progress-shimmer::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 1.5s infinite;
+        }
+        
+        #editor {
+            height: 100%;
+            min-height: 500px;
+        }
+        
+        .file-modified-indicator {
+            color: #f59e0b;
+            font-weight: bold;
+            margin-left: 8px;
+            font-size: 0.75rem;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #1e1b2e;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #3d3a56;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4d4a66;
+        }
+
+        /* Git Graph Styles */
+        .git-graph-container {
+            background: linear-gradient(135deg, #13111d 0%, #1e1b2e 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .git-graph-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(ellipse at 30% 20%, rgba(124, 58, 237, 0.08) 0%, transparent 50%),
+                        radial-gradient(ellipse at 70% 80%, rgba(6, 182, 212, 0.06) 0%, transparent 50%);
+            pointer-events: none;
+        }
+        
+        .commit-node {
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .commit-node:hover {
+            filter: brightness(1.3);
+        }
+        
+        .commit-node.selected {
+            filter: brightness(1.5);
+        }
+        
+        .graph-line {
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        
+        .branch-label {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        
+        .commit-message-preview {
+            font-size: 13px;
+            color: #a1a1aa;
+        }
+        
+        .commit-sha {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: #71717a;
+        }
+
+        /* Branch Colors */
+        .branch-main { color: #22c55e; }
+        .branch-feature { color: #3b82f6; }
+        .branch-hotfix { color: #ef4444; }
+        .branch-release { color: #f59e0b; }
+        .branch-develop { color: #8b5cf6; }
+        
+        /* Detail Panel */
+        .detail-panel {
+            background: linear-gradient(180deg, #2d2a42 0%, #1e1b2e 100%);
+            border-left: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .detail-section {
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        /* Navigation Active State */
+        .nav-item.active {
+            background: linear-gradient(90deg, rgba(124, 58, 237, 0.2) 0%, transparent 100%);
+            border-left-color: #7c3aed !important;
+        }
+        
+        .nav-item.active i {
+            color: #7c3aed;
+        }
+        
+        /* Context Menu */
+        .context-menu {
+            background: #2d2a42;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            min-width: 180px;
+            z-index: 1000;
+        }
+        
+        .context-menu-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: #e4e4e7;
+            transition: background 0.15s;
+        }
+        
+        .context-menu-item:hover {
+            background: rgba(124, 58, 237, 0.2);
+        }
+        
+        .context-menu-item.danger {
+            color: #ef4444;
+        }
+        
+        .context-menu-item.danger:hover {
+            background: rgba(239, 68, 68, 0.2);
+        }
+        
+        .context-menu-divider {
+            height: 1px;
+            background: rgba(255,255,255,0.1);
+            margin: 4px 0;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+        }
+        
+        .modal-content {
+            background: linear-gradient(180deg, #2d2a42 0%, #1e1b2e 100%);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.5);
+        }
+
+        /* Tooltips */
+        .tooltip {
+            position: absolute;
+            background: #3d3a56;
+            color: #f4f4f5;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 100;
+            white-space: nowrap;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: #3d3a56;
+        }
+
+        /* Graph zoom controls */
+        .zoom-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+        }
+        
+        .zoom-btn {
+            width: 36px;
+            height: 36px;
+            background: #2d2a42;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: #a1a1aa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .zoom-btn:hover {
+            background: #3d3a56;
+            color: #f4f4f5;
+        }
+
+        /* Branch badges */
+        .branch-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 100px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .branch-badge.main {
+            background: rgba(34, 197, 94, 0.2);
+            color: #22c55e;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        
+        .branch-badge.feature {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+        
+        .branch-badge.hotfix {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        
+        .branch-badge.develop {
+            background: rgba(139, 92, 246, 0.2);
+            color: #8b5cf6;
+            border: 1px solid rgba(139, 92, 246, 0.3);
+        }
+
+        /* Commit detail styling */
+        .diff-added {
+            background: rgba(34, 197, 94, 0.15);
+            border-left: 3px solid #22c55e;
+        }
+        
+        .diff-removed {
+            background: rgba(239, 68, 68, 0.15);
+            border-left: 3px solid #ef4444;
+        }
+
+        /* Drag and drop */
+        .drop-zone {
+            border: 2px dashed rgba(124, 58, 237, 0.3);
+            background: rgba(124, 58, 237, 0.05);
+            transition: all 0.2s;
+        }
+        
+        .drop-zone.active {
+            border-color: #7c3aed;
+            background: rgba(124, 58, 237, 0.15);
+        }
+
+        /* Stats cards */
+        .stat-card {
+            background: linear-gradient(135deg, #2d2a42 0%, #1e1b2e 100%);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent-color, #7c3aed), transparent);
+        }
+    </style>
+</head>
+<body class="bg-surface-dark">
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <div class="w-64 bg-surface text-white flex flex-col border-r border-white/5">
+            <div class="p-5 border-b border-white/5">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+                        <i class="fab fa-github text-xl"></i>
+                    </div>
+                    <div>
+                        <span class="text-lg font-bold text-text-primary">GitHub Pro</span>
+                        <div class="text-xs text-text-secondary">Visual Git Editor</div>
+                    </div>
+                </div>
+                <div class="mt-4 flex gap-2" id="permissionBadge"></div>
+                <div class="mt-1" id="authStatus"></div>
+            </div>
+            
+            <nav class="flex-1 overflow-y-auto py-3">
+                <div class="px-4 mb-2">
+                    <span class="text-xs font-semibold text-text-secondary uppercase tracking-wider">Repository</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-white/5 transition-colors border-l-2 border-transparent active" onclick="switchView('repo')">
+                    <i class="fas fa-database w-5 text-text-secondary"></i>
+                    <span class="text-sm text-text-primary">Repository</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-white/5 transition-colors border-l-2 border-transparent" onclick="switchView('git-graph')">
+                    <i class="fas fa-project-diagram w-5 text-text-secondary"></i>
+                    <span class="text-sm text-text-primary">Git Graph</span>
+                    <span class="ml-auto text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full">New</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-white/5 transition-colors border-l-2 border-transparent" onclick="switchView('files')">
+                    <i class="fas fa-folder w-5 text-text-secondary"></i>
+                    <span class="text-sm text-text-primary">File Explorer</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-white/5 transition-colors border-l-2 border-transparent" onclick="switchView('source-control')">
+                    <i class="fas fa-code-branch w-5 text-text-secondary"></i>
+                    <span class="text-sm text-text-primary">Source Control</span>
+                </div>
+                
+                <div class="px-4 mt-6 mb-2">
+                    <span class="text-xs font-semibold text-text-secondary uppercase tracking-wider">Explore</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-white/5 transition-colors border-l-2 border-transparent" onclick="switchView('search')">
+                    <i class="fas fa-search w-5 text-text-secondary"></i>
+                    <span class="text-sm text-text-primary">Search Code</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-white/5 transition-colors border-l-2 border-transparent" onclick="switchView('commits')">
+                    <i class="fas fa-history w-5 text-text-secondary"></i>
+                    <span class="text-sm text-text-primary">Commits</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-white/5 transition-colors border-l-2 border-transparent" onclick="switchView('branches')">
+                    <i class="fas fa-code-fork w-5 text-text-secondary"></i>
+                    <span class="text-sm text-text-primary">Branches</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-white/5 transition-colors border-l-2 border-transparent" onclick="switchView('info')">
+                    <i class="fas fa-info-circle w-5 text-text-secondary"></i>
+                    <span class="text-sm text-text-primary">Repository Info</span>
+                </div>
+                
+                <div class="px-4 mt-6 mb-2">
+                    <span class="text-xs font-semibold text-text-secondary uppercase tracking-wider">Account</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-white/5 transition-colors border-l-2 border-transparent" onclick="switchView('permissions')">
+                    <i class="fas fa-user-shield w-5 text-text-secondary"></i>
+                    <span class="text-sm text-text-primary">Permissions</span>
+                </div>
+                <div class="nav-item flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-white/5 transition-colors border-l-2 border-transparent" onclick="switchView('settings')">
+                    <i class="fas fa-cog w-5 text-text-secondary"></i>
+                    <span class="text-sm text-text-primary">Settings</span>
+                </div>
+            </nav>
+            
+            <!-- Version info -->
+            <div class="p-4 border-t border-white/5">
+                <div class="text-xs text-text-secondary text-center">
+                    v2.0 • Visual Git Edition
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col bg-surface-dark overflow-hidden">
+            <!-- Top Bar -->
+            <div class="bg-surface border-b border-white/5 px-6 py-3 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-lg font-semibold text-text-primary" id="topbarTitle">GitHub Pro Client</h1>
+                    <span class="hidden bg-gradient-to-r from-primary to-secondary text-white px-3 py-1 rounded-full text-xs font-semibold" id="repoBadge"></span>
+                    <span class="hidden text-sm text-text-secondary" id="userInfo"></span>
+                </div>
+                <div class="flex gap-2">
+                    <button class="hidden bg-secondary/20 hover:bg-secondary/30 text-secondary px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2" onclick="downloadAsZip()" id="downloadZipBtn">
+                        <i class="fas fa-download"></i> Download ZIP
+                    </button>
+                    <button class="bg-red-500/20 hover:bg-red-500/30 text-red-400 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2" onclick="clearAllData()">
+                        <i class="fas fa-trash"></i> Clear All
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="flex-1 overflow-y-auto overflow-x-hidden">
+                <!-- Repository View -->
+                <div class="view-container p-6" id="view-repo">
+                    <div class="bg-surface rounded-2xl border border-white/5 p-6 mb-6">
+                        <h2 class="text-xl font-bold text-text-primary mb-6 flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                                <i class="fas fa-database text-primary"></i>
+                            </div>
+                            Repository Management
+                        </h2>
+                        
+                        <div class="mb-5">
+                            <label class="block text-sm font-medium text-text-secondary mb-2">
+                                <i class="fas fa-key"></i> GitHub Personal Access Token
+                            </label>
+                            <div class="flex gap-2">
+                                <input type="password" id="tokenInput" class="flex-1 px-4 py-3 bg-surface-light border border-white/10 rounded-xl text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-text-secondary/50" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx (leave empty for public repos)">
+                                <button class="bg-primary hover:bg-primary-dark text-white px-5 py-3 rounded-xl font-medium transition-colors" onclick="updateToken()">
+                                    <i class="fas fa-sync"></i> Update
+                                </button>
+                            </div>
+                            <p class="text-xs text-text-secondary mt-2">
+                                Token needed for: private repos, pushing changes, higher API rate limits
+                            </p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 mb-5">
+                            <div>
+                                <label class="block text-sm font-medium text-text-secondary mb-2">
+                                    <i class="fab fa-github"></i> Repository URL or Owner/Repo
+                                </label>
+                                <input type="text" id="repoInput" class="w-full px-4 py-3 bg-surface-light border border-white/10 rounded-xl text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-text-secondary/50" placeholder="owner/repo or https://github.com/owner/repo">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-text-secondary mb-2">
+                                    <i class="fas fa-code-branch"></i> Branch
+                                </label>
+                                <select id="branchSelect" class="w-full px-4 py-3 bg-surface-light border border-white/10 rounded-xl text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all">
+                                    <option value="">Select a repository first</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <button id="syncButton" class="bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-xl font-medium transition-colors flex items-center gap-2" onclick="syncMetadata()">
+                                <i class="fas fa-sync"></i> Sync Repository Info
+                            </button>
+                            <button id="cloneButton" class="bg-secondary hover:bg-secondary/80 text-white px-6 py-3 rounded-xl font-medium transition-colors flex items-center gap-2" onclick="cloneRepository()">
+                                <i class="fas fa-download"></i> Clone Repository
+                            </button>
+                        </div>
+
+                        <div id="cloneProgress" class="hidden mt-6 bg-surface-light rounded-xl p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm font-medium text-text-primary" id="cloneProgressText">Preparing...</span>
+                                <span class="text-sm text-text-secondary" id="cloneProgressPercent">0%</span>
+                            </div>
+                            <div class="relative h-2 bg-surface-dark rounded-full overflow-hidden">
+                                <div id="cloneProgressBar" class="absolute inset-y-0 left-0 bg-gradient-to-r from-primary to-secondary rounded-full transition-all duration-300 progress-shimmer" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="statsGrid" class="hidden grid grid-cols-3 gap-4">
+                        <div class="stat-card" style="--accent-color: #7c3aed;">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center">
+                                    <i class="fas fa-file-code text-2xl text-primary"></i>
+                                </div>
+                                <div>
+                                    <p class="text-text-secondary text-sm">Files</p>
+                                    <p class="text-2xl font-bold text-text-primary" id="statFiles">0</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stat-card" style="--accent-color: #06b6d4;">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 bg-secondary/20 rounded-xl flex items-center justify-center">
+                                    <i class="fas fa-hdd text-2xl text-secondary"></i>
+                                </div>
+                                <div>
+                                    <p class="text-text-secondary text-sm">Total Size</p>
+                                    <p class="text-2xl font-bold text-text-primary" id="statSize">0 KB</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="stat-card" style="--accent-color: #f59e0b;">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 bg-accent/20 rounded-xl flex items-center justify-center">
+                                    <i class="fas fa-code-branch text-2xl text-accent"></i>
+                                </div>
+                                <div>
+                                    <p class="text-text-secondary text-sm">Branches</p>
+                                    <p class="text-2xl font-bold text-text-primary" id="statBranches">0</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Git Graph View (NEW) -->
+                <div class="view-container hidden h-full" id="view-git-graph">
+                    <div class="flex h-full">
+                        <!-- Graph Area -->
+                        <div class="flex-1 git-graph-container relative">
+                            <!-- Toolbar -->
+                            <div class="absolute top-0 left-0 right-0 z-10 bg-surface/90 backdrop-blur-sm border-b border-white/5 px-4 py-3 flex items-center justify-between">
+                                <div class="flex items-center gap-4">
+                                    <h2 class="text-lg font-semibold text-text-primary flex items-center gap-2">
+                                        <i class="fas fa-project-diagram text-primary"></i>
+                                        Commit Graph
+                                    </h2>
+                                    <div class="flex items-center gap-2">
+                                        <button onclick="createBranchModal()" class="bg-branch-main/20 hover:bg-branch-main/30 text-branch-main px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                                            <i class="fas fa-plus"></i> New Branch
+                                        </button>
+                                        <button onclick="refreshGitGraph()" class="bg-white/5 hover:bg-white/10 text-text-secondary px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                                            <i class="fas fa-sync-alt"></i> Refresh
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <!-- Branch filter -->
+                                    <select id="graphBranchFilter" onchange="filterGraphByBranch(this.value)" class="bg-surface-light border border-white/10 rounded-lg px-3 py-1.5 text-sm text-text-primary">
+                                        <option value="all">All Branches</option>
+                                    </select>
+                                    <!-- Search commits -->
+                                    <div class="relative">
+                                        <input type="text" id="graphCommitSearch" onkeyup="searchGraphCommits(this.value)" placeholder="Search commits..." class="bg-surface-light border border-white/10 rounded-lg px-3 py-1.5 pl-9 text-sm text-text-primary w-48 focus:outline-none focus:border-primary">
+                                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xs"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Graph Canvas -->
+                            <div id="gitGraphCanvas" class="absolute inset-0 pt-14 overflow-auto">
+                                <svg id="graphSvg" class="w-full" style="min-height: 100%; min-width: 100%;"></svg>
+                                <!-- Commit list overlay -->
+                                <div id="commitListOverlay" class="absolute left-[200px] top-0 right-0"></div>
+                            </div>
+                            
+                            <!-- Zoom Controls -->
+                            <div class="zoom-controls">
+                                <button onclick="zoomGraph(1.2)" class="zoom-btn" title="Zoom In">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                <button onclick="zoomGraph(0.8)" class="zoom-btn" title="Zoom Out">
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                                <button onclick="resetGraphZoom()" class="zoom-btn" title="Reset Zoom">
+                                    <i class="fas fa-compress"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Empty state -->
+                            <div id="gitGraphEmpty" class="hidden absolute inset-0 flex items-center justify-center">
+                                <div class="text-center">
+                                    <div class="w-20 h-20 mx-auto mb-4 rounded-full bg-white/5 flex items-center justify-center">
+                                        <i class="fas fa-project-diagram text-4xl text-text-secondary"></i>
+                                    </div>
+                                    <h3 class="text-xl font-semibold text-text-primary mb-2">No Repository Loaded</h3>
+                                    <p class="text-text-secondary mb-4">Clone a repository to visualize its commit history</p>
+                                    <button onclick="switchView('repo')" class="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                                        Go to Repository
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Detail Panel -->
+                        <div id="commitDetailPanel" class="w-96 detail-panel flex-col hidden">
+                            <div class="p-4 border-b border-white/5 flex items-center justify-between">
+                                <h3 class="font-semibold text-text-primary">Commit Details</h3>
+                                <button onclick="closeCommitPanel()" class="text-text-secondary hover:text-text-primary">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div class="flex-1 overflow-y-auto p-4" id="commitDetailContent">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Files View -->
+                <div class="view-container hidden p-6" id="view-files">
+                    <div class="grid grid-cols-2 gap-6 h-[calc(100vh-140px)]">
+                        <div class="bg-surface rounded-2xl border border-white/5 p-5 flex flex-col">
+                            <h2 class="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
+                                <i class="fas fa-folder-tree text-primary"></i>
+                                File Tree
+                            </h2>
+                            <div id="fileTree" class="flex-1 overflow-y-auto text-sm font-mono"></div>
+                        </div>
+                        <div class="bg-surface rounded-2xl border border-white/5 p-5 flex flex-col">
+                            <h2 class="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
+                                <i class="fas fa-code text-secondary"></i>
+                                <span id="editorFileName">Select a file</span>
+                            </h2>
+                            <div id="editor" class="flex-1 border border-white/10 rounded-xl overflow-hidden"></div>
+                            <div class="mt-4 flex gap-2">
+                                <button id="saveFileBtn" class="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2" disabled onclick="saveFileChanges()">
+                                    <i class="fas fa-save"></i> Save Changes
+                                </button>
+                                <button id="discardBtn" class="bg-white/10 hover:bg-white/20 text-text-secondary px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2" disabled onclick="discardFileChanges()">
+                                    <i class="fas fa-times"></i> Discard
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Source Control View -->
+                <div class="view-container hidden p-6" id="view-source-control">
+                    <div class="bg-surface rounded-2xl border border-white/5 p-6">
+                        <h2 class="text-xl font-bold text-text-primary mb-6 flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                                <i class="fas fa-code-branch text-primary"></i>
+                            </div>
+                            Source Control
+                        </h2>
+                        
+                        <div class="mb-6">
+                            <h3 class="text-sm font-medium text-text-secondary mb-3 flex items-center gap-2">
+                                <i class="fas fa-edit"></i> Modified Files
+                            </h3>
+                            <div id="modifiedFilesList" class="space-y-2 max-h-96 overflow-y-auto"></div>
+                        </div>
+
+                        <div class="border-t border-white/5 pt-6">
+                            <label class="block text-sm font-medium text-text-secondary mb-2">
+                                <i class="fas fa-message"></i> Commit Message
+                            </label>
+                            <textarea id="commitMessage" class="w-full px-4 py-3 bg-surface-light border border-white/10 rounded-xl text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-text-secondary/50" rows="4" placeholder="Describe your changes..."></textarea>
+                            <button id="commitButton" class="mt-4 bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-xl font-medium transition-colors flex items-center gap-2" onclick="commitChanges()">
+                                <i class="fas fa-check"></i> Commit & Push
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Search View -->
+                <div class="view-container hidden p-6" id="view-search">
+                    <div class="bg-surface rounded-2xl border border-white/5 p-6">
+                        <h2 class="text-xl font-bold text-text-primary mb-6 flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                                <i class="fas fa-search text-primary"></i>
+                            </div>
+                            Search Code
+                        </h2>
+                        
+                        <div class="mb-5 flex gap-2">
+                            <input type="text" id="searchInput" class="flex-1 px-4 py-3 bg-surface-light border border-white/10 rounded-xl text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-text-secondary/50" placeholder="Search in repository...">
+                            <button class="bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-xl font-medium transition-colors flex items-center gap-2" onclick="searchFiles()">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                        </div>
+
+                        <div id="searchResults" class="mt-6"></div>
+                    </div>
+                </div>
+
+                <!-- Commits View -->
+                <div class="view-container hidden p-6" id="view-commits">
+                    <div class="bg-surface rounded-2xl border border-white/5 p-6">
+                        <h2 class="text-xl font-bold text-text-primary mb-6 flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                                <i class="fas fa-history text-primary"></i>
+                            </div>
+                            Recent Commits
+                        </h2>
+                        <div id="commitsList" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <!-- Branches View -->
+                <div class="view-container hidden p-6" id="view-branches">
+                    <div class="bg-surface rounded-2xl border border-white/5 p-6">
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="text-xl font-bold text-text-primary flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                                    <i class="fas fa-code-fork text-primary"></i>
+                                </div>
+                                Branches
+                            </h2>
+                            <button onclick="createBranchModal()" class="bg-branch-main/20 hover:bg-branch-main/30 text-branch-main px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                                <i class="fas fa-plus"></i> New Branch
+                            </button>
+                        </div>
+                        <div id="branchesList" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <!-- Info View -->
+                <div class="view-container hidden p-6" id="view-info">
+                    <div class="bg-surface rounded-2xl border border-white/5 p-6">
+                        <h2 class="text-xl font-bold text-text-primary mb-6 flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                                <i class="fas fa-info-circle text-primary"></i>
+                            </div>
+                            Repository Information
+                        </h2>
+                        <pre id="infoOutput" class="text-sm text-text-secondary whitespace-pre-wrap font-mono bg-surface-light p-5 rounded-xl border border-white/5"></pre>
+                    </div>
+                </div>
+
+                <!-- Permissions View -->
+                <div class="view-container hidden p-6" id="view-permissions">
+                    <div class="bg-surface rounded-2xl border border-white/5 p-6">
+                        <h2 class="text-xl font-bold text-text-primary mb-6 flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                                <i class="fas fa-user-shield text-primary"></i>
+                            </div>
+                            Permissions
+                        </h2>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-surface-light rounded-xl p-4">
+                                <span class="text-text-secondary text-sm">Authentication Status</span>
+                                <p class="text-text-primary font-semibold mt-1" id="permAuthStatus">Not authenticated</p>
+                            </div>
+                            <div class="bg-surface-light rounded-xl p-4">
+                                <span class="text-text-secondary text-sm">Username</span>
+                                <p class="text-text-primary font-semibold mt-1" id="permUsername">Anonymous</p>
+                            </div>
+                            <div class="bg-surface-light rounded-xl p-4">
+                                <span class="text-text-secondary text-sm">Permission Level</span>
+                                <p class="text-text-primary font-semibold mt-1" id="permLevel">read</p>
+                            </div>
+                            <div class="bg-surface-light rounded-xl p-4">
+                                <span class="text-text-secondary text-sm">Can Push</span>
+                                <p class="text-text-primary font-semibold mt-1" id="permCanPush">No</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings View -->
+                <div class="view-container hidden p-6" id="view-settings">
+                    <div class="bg-surface rounded-2xl border border-white/5 p-6">
+                        <h2 class="text-xl font-bold text-text-primary mb-6 flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                                <i class="fas fa-cog text-primary"></i>
+                            </div>
+                            Settings
+                        </h2>
+                        
+                        <div class="space-y-4 mb-6">
+                            <div>
+                                <label class="block text-sm font-medium text-text-secondary mb-2">
+                                    <i class="fas fa-user"></i> Git User Name
+                                </label>
+                                <input type="text" id="gitUserName" class="w-full px-4 py-3 bg-surface-light border border-white/10 rounded-xl text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-text-secondary/50" placeholder="Your Name">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-text-secondary mb-2">
+                                    <i class="fas fa-envelope"></i> Git User Email
+                                </label>
+                                <input type="email" id="gitUserEmail" class="w-full px-4 py-3 bg-surface-light border border-white/10 rounded-xl text-text-primary focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder-text-secondary/50" placeholder="your.email@example.com">
+                            </div>
+                        </div>
+
+                        <button class="bg-primary hover:bg-primary-dark text-white px-6 py-3 rounded-xl font-medium transition-colors flex items-center gap-2 mb-6" onclick="saveSettings()">
+                            <i class="fas fa-save"></i> Save Settings
+                        </button>
+
+                        <div class="border-t border-white/5 pt-6">
+                            <h3 class="text-lg font-semibold text-text-primary mb-4">Storage Information</h3>
+                            <pre id="storageInfo" class="text-sm text-text-secondary whitespace-pre-wrap font-mono bg-surface-light p-4 rounded-xl"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="bg-surface rounded-2xl border border-white/10 shadow-2xl p-8 max-w-md w-full mx-4">
+            <div class="flex flex-col items-center">
+                <div class="w-16 h-16 border-4 border-primary border-t-transparent rounded-full spinner mb-4"></div>
+                <p class="text-lg font-semibold text-text-primary mb-2" id="loadingTitle">Processing...</p>
+                <p class="text-sm text-text-secondary" id="loadingText"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed bottom-6 right-6 z-50 space-y-2"></div>
+
+    <!-- Context Menu -->
+    <div id="contextMenu" class="context-menu hidden fixed"></div>
+
+    <!-- Modal Container -->
+    <div id="modalOverlay" class="hidden fixed inset-0 modal-overlay z-50 flex items-center justify-center">
+        <div class="modal-content max-w-lg w-full mx-4" id="modalContent">
+            <!-- Populated by JS -->
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script>
+        window.define_backup = window.define;
+        window.define = undefined;
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script>
+        window.define = window.define_backup;
+        window.define_backup = undefined;
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    <script>
+        // --- Global State ---
+        let db;
+        let currentRepo = { owner: '', repo: '', branch: 'main', token: '' };
+        let userPermissions = {
+            authenticated: false,
+            username: 'Anonymous',
+            permission: 'read',
+            canPush: false
+        };
+        let monacoEditor = null;
+        let currentFile = null;
+        let fileTreeData = null;
+        
+        // Git Graph State
+        let graphData = {
+            commits: [],
+            branches: [],
+            currentBranch: null,
+            selectedCommit: null
+        };
+        let graphZoom = 1;
+        const GRAPH_NODE_RADIUS = 8;
+        const GRAPH_ROW_HEIGHT = 60;
+        const GRAPH_COL_WIDTH = 30;
+        const GRAPH_LEFT_MARGIN = 20;
+        
+        // Branch colors
+        const BRANCH_COLORS = [
+            '#22c55e', // green - main
+            '#3b82f6', // blue - feature
+            '#8b5cf6', // purple - develop
+            '#f59e0b', // amber - release
+            '#ef4444', // red - hotfix
+            '#06b6d4', // cyan
+            '#ec4899', // pink
+            '#84cc16', // lime
+        ];
+
+        // --- IndexedDB Setup ---
+        async function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('GitHubProDB', 7);
+                
+                request.onsuccess = (event) => {
+                    db = event.target.result;
+                    resolve(db);
+                };
+                
+                request.onerror = (event) => {
+                    reject(new Error('Failed to open database: ' + event.target.error));
+                };
+                
+                request.onupgradeneeded = (event) => {
+                    log('Database schema upgrade to v7...');
+                    const db = event.target.result;
+                    
+                    if (db.objectStoreNames.contains('files')) {
+                        db.deleteObjectStore('files');
+                    }
+                    if (db.objectStoreNames.contains('metadata')) {
+                        db.deleteObjectStore('metadata');
+                    }
+                    
+                    const fileStore = db.createObjectStore('files', { keyPath: 'path' });
+                    fileStore.createIndex('isDirty', 'isDirty', { unique: false });
+                    
+                    db.createObjectStore('metadata', { keyPath: 'key' });
+                    
+                    log('Database v7 upgrade complete');
+                };
+            });
+        }
+
+        async function saveToIndexedDB(storeName, data) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const transaction = db.transaction([storeName], 'readwrite');
+                    const store = transaction.objectStore(storeName);
+                    const request = store.put(data);
+                    request.onsuccess = () => resolve();
+                    request.onerror = (event) => reject(event.target.error);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
+        async function getFromIndexedDB(storeName, key) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const transaction = db.transaction([storeName], 'readonly');
+                    const store = transaction.objectStore(storeName);
+                    const request = store.get(key);
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = (event) => reject(event.target.error);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
+        async function getAllFromIndexedDB(storeName) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const transaction = db.transaction([storeName], 'readonly');
+                    const store = transaction.objectStore(storeName);
+                    const request = store.getAll();
+                    request.onsuccess = () => resolve(request.result || []);
+                    request.onerror = (event) => reject(event.target.error);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
+        async function clearIndexedDB(storeName) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const transaction = db.transaction([storeName], 'readwrite');
+                    const store = transaction.objectStore(storeName);
+                    const request = store.clear();
+                    request.onsuccess = () => resolve();
+                    request.onerror = (event) => reject(event.target.error);
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+
+        async function getDirtyFiles() {
+            try {
+                return await new Promise((resolve, reject) => {
+                    try {
+                        const transaction = db.transaction(['files'], 'readonly');
+                        const store = transaction.objectStore('files');
+                        
+                        if (store.indexNames.contains('isDirty')) {
+                            const index = store.index('isDirty');
+                            const request = index.getAll(true);
+                            request.onsuccess = () => resolve(request.result || []);
+                            request.onerror = () => reject(new Error('Index query failed'));
+                        } else {
+                            reject(new Error('Index not found'));
+                        }
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            } catch (indexError) {
+                try {
+                    const allFiles = await getAllFromIndexedDB('files');
+                    return allFiles.filter(file => file.isDirty === true);
+                } catch (fallbackError) {
+                    return [];
+                }
+            }
+        }
+
+        // --- GitHub API ---
+        async function githubFetch(endpoint, options = {}) {
+            const headers = {
+                'Accept': 'application/vnd.github.v3+json',
+                ...options.headers
+            };
+
+            if (currentRepo.token) {
+                headers['Authorization'] = `Bearer ${currentRepo.token}`;
+            }
+
+            const response = await fetch(`https://api.github.com${endpoint}`, {
+                ...options,
+                headers
+            });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.message || `API error: ${response.status}`);
+            }
+
+            return response.json();
+        }
+
+        // --- Auth & Permissions ---
+        function hasToken() {
+            return currentRepo.token && currentRepo.token.trim() !== '';
+        }
+
+        async function updateToken() {
+            const newToken = document.getElementById('tokenInput').value.trim();
+            currentRepo.token = newToken;
+            
+            if (currentRepo.owner && currentRepo.repo) {
+                await saveToIndexedDB('metadata', {
+                    key: 'currentRepo',
+                    value: currentRepo
+                });
+                
+                if (hasToken()) {
+                    showLoading('Checking permissions...', 'Please wait');
+                    await checkUserPermissions();
+                    hideLoading();
+                    showToast('Token updated and permissions refreshed', 'success');
+                } else {
+                    userPermissions = {
+                        authenticated: false,
+                        canPush: false,
+                        permission: 'read',
+                        username: 'Anonymous'
+                    };
+                    updatePermissionUI();
+                    showToast('Token removed - using public access mode', 'info');
+                }
+            } else {
+                showToast('Token saved. Select a repository to check permissions.', 'info');
+            }
+        }
+
+        async function checkUserPermissions() {
+            if (!hasToken()) {
+                userPermissions = {
+                    authenticated: false,
+                    canPush: false,
+                    permission: 'read',
+                    username: 'Anonymous'
+                };
+                updatePermissionUI();
+                return;
+            }
+
+            try {
+                const userResponse = await githubFetch('/user');
+                userPermissions.username = userResponse.login;
+                userPermissions.authenticated = true;
+
+                try {
+                    const repoResponse = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}`);
+                    const permissions = repoResponse.permissions || {};
+                    
+                    if (permissions.admin) {
+                        userPermissions.permission = 'admin';
+                        userPermissions.canPush = true;
+                    } else if (permissions.push) {
+                        userPermissions.permission = 'write';
+                        userPermissions.canPush = true;
+                    } else {
+                        userPermissions.permission = 'read';
+                        userPermissions.canPush = false;
+                    }
+                } catch (repoError) {
+                    userPermissions.permission = 'read';
+                    userPermissions.canPush = false;
+                }
+
+                await saveToIndexedDB('metadata', {
+                    key: 'userPermissions',
+                    value: userPermissions
+                });
+
+                updatePermissionUI();
+                log(`✓ User: ${userPermissions.username}`);
+            } catch (error) {
+                userPermissions = {
+                    authenticated: false,
+                    canPush: false,
+                    permission: 'invalid',
+                    username: 'Invalid Token'
+                };
+                updatePermissionUI();
+                showToast('Invalid token or insufficient permissions', 'error');
+            }
+        }
+
+        function updatePermissionUI() {
+            const badge = document.getElementById('permissionBadge');
+            const authStatus = document.getElementById('authStatus');
+            
+            if (userPermissions.authenticated) {
+                badge.innerHTML = `<span class="inline-flex items-center gap-1 bg-branch-main/20 text-branch-main text-xs px-2.5 py-1 rounded-full font-medium">
+                    <i class="fas fa-shield-alt text-[10px]"></i> ${userPermissions.permission}
+                </span>`;
+                authStatus.innerHTML = `<span class="text-xs text-text-secondary">
+                    <i class="fas fa-user"></i> ${userPermissions.username}
+                </span>`;
+            } else {
+                badge.innerHTML = `<span class="inline-flex items-center gap-1 bg-white/10 text-text-secondary text-xs px-2.5 py-1 rounded-full font-medium">
+                    <i class="fas fa-eye text-[10px]"></i> read-only
+                </span>`;
+                authStatus.innerHTML = `<span class="text-xs text-text-secondary">
+                    <i class="fas fa-globe"></i> Public access
+                </span>`;
+            }
+
+            document.getElementById('permAuthStatus').textContent = userPermissions.authenticated ? 'Authenticated' : 'Not authenticated';
+            document.getElementById('permUsername').textContent = userPermissions.username;
+            document.getElementById('permLevel').textContent = userPermissions.permission;
+            document.getElementById('permCanPush').textContent = userPermissions.canPush ? 'Yes' : 'No';
+        }
+
+        // --- UI Helpers ---
+        function switchView(view) {
+            document.querySelectorAll('.view-container').forEach(el => el.classList.add('hidden'));
+            const viewEl = document.getElementById(`view-${view}`);
+            if (viewEl) {
+                viewEl.classList.remove('hidden');
+            }
+            
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.classList.remove('active');
+                el.classList.remove('border-primary');
+            });
+            
+            const navItems = document.querySelectorAll('.nav-item');
+            navItems.forEach(item => {
+                const onclick = item.getAttribute('onclick');
+                if (onclick && onclick.includes(`'${view}'`)) {
+                    item.classList.add('active', 'border-primary');
+                }
+            });
+
+            if (view === 'source-control') {
+                loadModifiedFilesList();
+            } else if (view === 'settings') {
+                showStorageInfo();
+            } else if (view === 'git-graph') {
+                renderGitGraph();
+            }
+        }
+
+        function showLoading(title, text = '') {
+            document.getElementById('loadingTitle').textContent = title;
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            const colors = {
+                success: 'bg-branch-main',
+                error: 'bg-branch-hotfix',
+                info: 'bg-primary',
+                warning: 'bg-accent'
+            };
+
+            toast.className = `toast ${colors[type] || colors.info} text-white px-5 py-3 rounded-xl shadow-lg flex items-center gap-3 min-w-[300px]`;
+            toast.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'} text-lg"></i>
+                <span class="text-sm font-medium">${message}</span>
+            `;
+
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        }
+
+        function log(message, colorClass = 'text-text-secondary') {
+            console.log(message);
+        }
+
+        function showModal(content) {
+            document.getElementById('modalContent').innerHTML = content;
+            document.getElementById('modalOverlay').classList.remove('hidden');
+        }
+
+        function hideModal() {
+            document.getElementById('modalOverlay').classList.add('hidden');
+        }
+
+        // Close modal on overlay click
+        document.getElementById('modalOverlay').addEventListener('click', (e) => {
+            if (e.target.id === 'modalOverlay') {
+                hideModal();
+            }
+        });
+
+        // --- Repository Management ---
+        async function syncMetadata() {
+            const repoInput = document.getElementById('repoInput').value.trim();
+            if (!repoInput) {
+                showToast('Please enter a repository', 'warning');
+                return;
+            }
+
+            const match = repoInput.match(/(?:https?:\/\/github\.com\/)?([^\/]+)\/([^\/]+)/);
+            if (!match) {
+                showToast('Invalid repository format', 'error');
+                return;
+            }
+
+            currentRepo.owner = match[1];
+            currentRepo.repo = match[2].replace(/\.git$/, '');
+            currentRepo.token = document.getElementById('tokenInput').value.trim();
+
+            showLoading('Syncing repository...', 'Fetching metadata');
+            
+            try {
+                await checkUserPermissions();
+                
+                const repoData = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}`);
+                currentRepo.branch = repoData.default_branch;
+
+                await saveToIndexedDB('metadata', {
+                    key: 'repoInfo',
+                    value: repoData
+                });
+
+                const branches = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/branches`);
+                const branchSelect = document.getElementById('branchSelect');
+                branchSelect.innerHTML = branches.map(b => 
+                    `<option value="${b.name}" ${b.name === currentRepo.branch ? 'selected' : ''}>${b.name}</option>`
+                ).join('');
+
+                await saveToIndexedDB('metadata', {
+                    key: 'currentRepo',
+                    value: currentRepo
+                });
+
+                showToast(`Synced ${currentRepo.owner}/${currentRepo.repo}`, 'success');
+            } catch (error) {
+                showToast('Sync failed: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function cloneRepository() {
+            if (!currentRepo.owner || !currentRepo.repo) {
+                showToast('Sync repository first', 'warning');
+                return;
+            }
+
+            const selectedBranch = document.getElementById('branchSelect').value;
+            currentRepo.branch = selectedBranch;
+
+            showLoading('Cloning repository...', 'This may take a moment');
+            document.getElementById('cloneProgress').classList.remove('hidden');
+
+            try {
+                updateCloneProgress('Fetching file tree...', 10);
+
+                const treeResponse = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/git/trees/${currentRepo.branch}?recursive=1`);
+                const files = treeResponse.tree.filter(item => item.type === 'blob');
+
+                await saveToIndexedDB('metadata', {
+                    key: 'tree',
+                    value: treeResponse.tree
+                });
+
+                updateCloneProgress('Downloading files...', 30);
+
+                let downloaded = 0;
+                const batchSize = 5;
+                
+                for (let i = 0; i < files.length; i += batchSize) {
+                    const batch = files.slice(i, Math.min(i + batchSize, files.length));
+                    
+                    const results = await Promise.allSettled(batch.map(async (file) => {
+                        try {
+                            const blobResponse = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/git/blobs/${file.sha}`);
+                            
+                            await saveToIndexedDB('files', {
+                                path: file.path,
+                                content: blobResponse.content,
+                                encoding: blobResponse.encoding,
+                                size: file.size,
+                                sha: file.sha,
+                                isDirty: false
+                            });
+                            
+                            return { success: true, path: file.path };
+                        } catch (error) {
+                            return { success: false, path: file.path, error: error.message };
+                        }
+                    }));
+
+                    const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+                    downloaded += successCount;
+
+                    const progress = 30 + Math.floor((downloaded / files.length) * 60);
+                    updateCloneProgress(`Downloaded ${downloaded}/${files.length} files`, progress);
+                }
+
+                updateCloneProgress('Finalizing...', 95);
+
+                await updateRepositoryUI();
+                await loadFileTree();
+                await loadGitGraphData();
+                
+                updateCloneProgress('Complete!', 100);
+                setTimeout(() => {
+                    document.getElementById('cloneProgress').classList.add('hidden');
+                    showToast(`Repository cloned! ${downloaded} files downloaded`, downloaded === files.length ? 'success' : 'warning');
+                }, 1000);
+            } catch (error) {
+                showToast('Clone failed: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function updateCloneProgress(text, percent) {
+            document.getElementById('cloneProgressText').textContent = text;
+            document.getElementById('cloneProgressPercent').textContent = `${percent}%`;
+            document.getElementById('cloneProgressBar').style.width = `${percent}%`;
+        }
+
+        async function updateRepositoryUI() {
+            document.getElementById('repoBadge').textContent = `${currentRepo.owner}/${currentRepo.repo}`;
+            document.getElementById('repoBadge').classList.remove('hidden');
+            document.getElementById('downloadZipBtn').classList.remove('hidden');
+
+            const files = await getAllFromIndexedDB('files');
+            const totalSize = files.reduce((sum, f) => sum + (f.size || 0), 0);
+            
+            document.getElementById('statFiles').textContent = files.length;
+            document.getElementById('statSize').textContent = (totalSize / 1024).toFixed(2) + ' KB';
+            document.getElementById('statsGrid').classList.remove('hidden');
+
+            await loadCommits();
+            await loadBranches();
+            await loadRepoInfo();
+        }
+
+        // --- GIT GRAPH VISUALIZATION ---
+        async function loadGitGraphData() {
+            if (!currentRepo.owner || !currentRepo.repo) {
+                document.getElementById('gitGraphEmpty').classList.remove('hidden');
+                document.getElementById('gitGraphCanvas').classList.add('hidden');
+                return;
+            }
+
+            try {
+                // Load commits with pagination for better graph
+                const commits = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/commits?per_page=50`);
+                const branches = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/branches`);
+                
+                graphData.commits = commits;
+                graphData.branches = branches;
+                graphData.currentBranch = currentRepo.branch;
+
+                // Update branch filter
+                const branchFilter = document.getElementById('graphBranchFilter');
+                branchFilter.innerHTML = `<option value="all">All Branches</option>` +
+                    branches.map(b => `<option value="${b.name}">${b.name}</option>`).join('');
+
+                document.getElementById('gitGraphEmpty').classList.add('hidden');
+                document.getElementById('gitGraphCanvas').classList.remove('hidden');
+                
+                renderGitGraph();
+            } catch (error) {
+                console.error('Failed to load git graph data:', error);
+                showToast('Failed to load git graph: ' + error.message, 'error');
+            }
+        }
+
+        function renderGitGraph() {
+            if (!graphData.commits.length) {
+                document.getElementById('gitGraphEmpty').classList.remove('hidden');
+                return;
+            }
+
+            const svg = document.getElementById('graphSvg');
+            const overlay = document.getElementById('commitListOverlay');
+            
+            // Calculate dimensions
+            const numCommits = graphData.commits.length;
+            const height = (numCommits + 2) * GRAPH_ROW_HEIGHT;
+            const width = 800;
+            
+            svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+            svg.style.height = `${height}px`;
+            
+            // Build commit graph structure
+            const commitMap = new Map();
+            graphData.commits.forEach((commit, index) => {
+                commitMap.set(commit.sha, { ...commit, index, column: 0 });
+            });
+
+            // Assign columns (simplified - main branch gets column 0)
+            let maxColumn = 0;
+            const branchColumns = new Map();
+            
+            // Assign branch to each commit based on what branches contain it
+            graphData.branches.forEach((branch, idx) => {
+                branchColumns.set(branch.name, idx);
+                maxColumn = Math.max(maxColumn, idx);
+            });
+
+            // Generate SVG content
+            let svgContent = `
+                <defs>
+                    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                        <feMerge>
+                            <feMergeNode in="coloredBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                    <linearGradient id="lineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" style="stop-color:${BRANCH_COLORS[0]};stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:${BRANCH_COLORS[0]};stop-opacity:0.5" />
+                    </linearGradient>
+                </defs>
+            `;
+
+            // Draw branch lines
+            const branchPaths = {};
+            graphData.commits.forEach((commit, index) => {
+                const column = 0; // Simplified - all on main column
+                const x = GRAPH_LEFT_MARGIN + (column * GRAPH_COL_WIDTH) + GRAPH_COL_WIDTH;
+                const y = GRAPH_ROW_HEIGHT + (index * GRAPH_ROW_HEIGHT);
+                
+                if (!branchPaths[column]) {
+                    branchPaths[column] = [];
+                }
+                branchPaths[column].push({ x, y, commit });
+            });
+
+            // Draw connecting lines
+            Object.entries(branchPaths).forEach(([col, points]) => {
+                if (points.length > 1) {
+                    const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                    const color = BRANCH_COLORS[parseInt(col) % BRANCH_COLORS.length];
+                    svgContent += `
+                        <path d="${pathData}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" class="graph-line" opacity="0.6"/>
+                    `;
+                }
+            });
+
+            // Draw merge lines (parent connections)
+            graphData.commits.forEach((commit, index) => {
+                const y = GRAPH_ROW_HEIGHT + (index * GRAPH_ROW_HEIGHT);
+                const x = GRAPH_LEFT_MARGIN + GRAPH_COL_WIDTH;
+                
+                if (commit.parents && commit.parents.length > 1) {
+                    // This is a merge commit
+                    commit.parents.forEach((parent, pIdx) => {
+                        const parentCommit = commitMap.get(parent.sha);
+                        if (parentCommit && pIdx > 0) {
+                            const parentY = GRAPH_ROW_HEIGHT + (parentCommit.index * GRAPH_ROW_HEIGHT);
+                            const color = BRANCH_COLORS[(pIdx + 1) % BRANCH_COLORS.length];
+                            
+                            // Draw curved merge line
+                            const midY = (y + parentY) / 2;
+                            svgContent += `
+                                <path d="M ${x} ${y} Q ${x + 40} ${midY} ${x} ${parentY}" 
+                                      fill="none" stroke="${color}" stroke-width="2" 
+                                      stroke-linecap="round" opacity="0.5" stroke-dasharray="4,4"/>
+                            `;
+                        }
+                    });
+                }
+            });
+
+            // Draw commit nodes
+            graphData.commits.forEach((commit, index) => {
+                const column = 0;
+                const x = GRAPH_LEFT_MARGIN + (column * GRAPH_COL_WIDTH) + GRAPH_COL_WIDTH;
+                const y = GRAPH_ROW_HEIGHT + (index * GRAPH_ROW_HEIGHT);
+                const color = BRANCH_COLORS[0];
+                const isSelected = graphData.selectedCommit === commit.sha;
+                const isMerge = commit.parents && commit.parents.length > 1;
+                
+                // Node background glow
+                if (isSelected) {
+                    svgContent += `
+                        <circle cx="${x}" cy="${y}" r="${GRAPH_NODE_RADIUS + 6}" fill="${color}" opacity="0.3" filter="url(#glow)"/>
+                    `;
+                }
+                
+                // Node circle
+                svgContent += `
+                    <circle class="commit-node ${isSelected ? 'selected' : ''}" 
+                            cx="${x}" cy="${y}" r="${GRAPH_NODE_RADIUS}" 
+                            fill="${isMerge ? '#1e1b2e' : color}" 
+                            stroke="${color}" stroke-width="${isMerge ? 3 : 2}"
+                            data-sha="${commit.sha}"
+                            onclick="selectCommit('${commit.sha}')"
+                            oncontextmenu="showCommitContextMenu(event, '${commit.sha}')"/>
+                `;
+                
+                // Branch labels for first commits
+                if (index === 0) {
+                    graphData.branches.forEach((branch, bIdx) => {
+                        if (branch.commit.sha === commit.sha) {
+                            const labelX = x + GRAPH_NODE_RADIUS + 15;
+                            const labelY = y - 15;
+                            const branchColor = BRANCH_COLORS[bIdx % BRANCH_COLORS.length];
+                            
+                            svgContent += `
+                                <g transform="translate(${labelX}, ${labelY})">
+                                    <rect x="0" y="-10" width="${branch.name.length * 7 + 16}" height="20" rx="10" 
+                                          fill="${branchColor}20" stroke="${branchColor}" stroke-width="1"/>
+                                    <text x="8" y="4" class="branch-label" fill="${branchColor}">${branch.name}</text>
+                                </g>
+                            `;
+                        }
+                    });
+                }
+            });
+
+            svg.innerHTML = svgContent;
+
+            // Build commit list overlay
+            let overlayContent = '';
+            graphData.commits.forEach((commit, index) => {
+                const y = GRAPH_ROW_HEIGHT + (index * GRAPH_ROW_HEIGHT) - 20;
+                const isSelected = graphData.selectedCommit === commit.sha;
+                const message = commit.commit.message.split('\n')[0];
+                const truncatedMsg = message.length > 60 ? message.substring(0, 60) + '...' : message;
+                const date = new Date(commit.commit.author.date).toLocaleDateString();
+                const time = new Date(commit.commit.author.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                
+                overlayContent += `
+                    <div class="absolute left-0 right-0 px-4 py-2 cursor-pointer transition-all hover:bg-white/5 ${isSelected ? 'bg-primary/10' : ''}" 
+                         style="top: ${y}px; height: ${GRAPH_ROW_HEIGHT}px;"
+                         onclick="selectCommit('${commit.sha}')"
+                         oncontextmenu="showCommitContextMenu(event, '${commit.sha}')">
+                        <div class="flex items-center h-full gap-4">
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm text-text-primary truncate font-medium">${truncatedMsg}</div>
+                                <div class="flex items-center gap-3 mt-1">
+                                    <span class="text-xs text-text-secondary font-mono">${commit.sha.substring(0, 7)}</span>
+                                    <span class="text-xs text-text-secondary">${commit.commit.author.name}</span>
+                                </div>
+                            </div>
+                            <div class="text-right text-xs text-text-secondary whitespace-nowrap">
+                                <div>${date}</div>
+                                <div>${time}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            overlay.innerHTML = overlayContent;
+            overlay.style.height = `${height}px`;
+        }
+
+        function selectCommit(sha) {
+            graphData.selectedCommit = sha;
+            renderGitGraph();
+            showCommitDetails(sha);
+        }
+
+        async function showCommitDetails(sha) {
+            const commit = graphData.commits.find(c => c.sha === sha);
+            if (!commit) return;
+
+            const panel = document.getElementById('commitDetailPanel');
+            const content = document.getElementById('commitDetailContent');
+            
+            panel.classList.remove('hidden');
+            panel.classList.add('flex');
+
+            // Get commit details with files
+            let filesHtml = '<div class="text-text-secondary text-sm">Loading changed files...</div>';
+            
+            try {
+                const commitDetail = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/commits/${sha}`);
+                
+                if (commitDetail.files && commitDetail.files.length > 0) {
+                    filesHtml = commitDetail.files.map(file => {
+                        const statusColors = {
+                            added: 'text-branch-main',
+                            modified: 'text-accent',
+                            removed: 'text-branch-hotfix',
+                            renamed: 'text-branch-feature'
+                        };
+                        const statusIcons = {
+                            added: 'fa-plus',
+                            modified: 'fa-pen',
+                            removed: 'fa-minus',
+                            renamed: 'fa-arrow-right'
+                        };
+                        return `
+                            <div class="flex items-center gap-2 py-2 px-3 bg-surface-light/50 rounded-lg mb-2">
+                                <i class="fas ${statusIcons[file.status] || 'fa-file'} text-xs ${statusColors[file.status] || 'text-text-secondary'}"></i>
+                                <span class="text-sm text-text-primary truncate flex-1 font-mono">${file.filename}</span>
+                                <span class="text-xs">
+                                    <span class="text-branch-main">+${file.additions}</span>
+                                    <span class="text-branch-hotfix ml-1">-${file.deletions}</span>
+                                </span>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            } catch (e) {
+                filesHtml = '<div class="text-text-secondary text-sm">Could not load file changes</div>';
+            }
+
+            const message = commit.commit.message;
+            const [title, ...bodyParts] = message.split('\n');
+            const body = bodyParts.join('\n').trim();
+
+            content.innerHTML = `
+                <div class="space-y-6">
+                    <!-- Commit Info -->
+                    <div class="detail-section pb-4">
+                        <div class="text-lg font-semibold text-text-primary mb-3">${title}</div>
+                        ${body ? `<div class="text-sm text-text-secondary whitespace-pre-wrap bg-surface-light/50 rounded-lg p-3 mb-3">${body}</div>` : ''}
+                        <div class="flex items-center gap-2 text-xs font-mono bg-surface-light/50 rounded-lg px-3 py-2">
+                            <span class="text-text-secondary">SHA:</span>
+                            <span class="text-primary">${commit.sha}</span>
+                            <button onclick="copyToClipboard('${commit.sha}')" class="ml-auto text-text-secondary hover:text-text-primary">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Author -->
+                    <div class="detail-section pb-4">
+                        <h4 class="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Author</h4>
+                        <div class="flex items-center gap-3">
+                            <img src="${commit.author?.avatar_url || 'https://github.com/ghost.png'}" 
+                                 class="w-10 h-10 rounded-full border-2 border-white/10" 
+                                 alt="${commit.commit.author.name}">
+                            <div>
+                                <div class="text-sm font-medium text-text-primary">${commit.commit.author.name}</div>
+                                <div class="text-xs text-text-secondary">${commit.commit.author.email}</div>
+                            </div>
+                        </div>
+                        <div class="mt-3 text-xs text-text-secondary">
+                            <i class="fas fa-clock mr-1"></i>
+                            ${new Date(commit.commit.author.date).toLocaleString()}
+                        </div>
+                    </div>
+                    
+                    <!-- Parents -->
+                    ${commit.parents && commit.parents.length > 0 ? `
+                    <div class="detail-section pb-4">
+                        <h4 class="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Parents</h4>
+                        <div class="space-y-2">
+                            ${commit.parents.map(p => `
+                                <div class="text-xs font-mono text-primary cursor-pointer hover:underline" onclick="selectCommit('${p.sha}')">
+                                    ${p.sha.substring(0, 7)}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
+                    
+                    <!-- Changed Files -->
+                    <div class="detail-section pb-4">
+                        <h4 class="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Changed Files</h4>
+                        <div class="max-h-64 overflow-y-auto">
+                            ${filesHtml}
+                        </div>
+                    </div>
+                    
+                    <!-- Actions -->
+                    <div class="space-y-2">
+                        <button onclick="checkoutCommit('${commit.sha}')" class="w-full bg-primary/20 hover:bg-primary/30 text-primary px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                            <i class="fas fa-code-branch"></i> Checkout
+                        </button>
+                        <button onclick="revertCommit('${commit.sha}')" class="w-full bg-accent/20 hover:bg-accent/30 text-accent px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                            <i class="fas fa-undo"></i> Revert
+                        </button>
+                        <button onclick="cherryPickCommit('${commit.sha}')" class="w-full bg-secondary/20 hover:bg-secondary/30 text-secondary px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                            <i class="fas fa-hand-holding"></i> Cherry Pick
+                        </button>
+                        <a href="https://github.com/${currentRepo.owner}/${currentRepo.repo}/commit/${commit.sha}" target="_blank" 
+                           class="w-full bg-white/5 hover:bg-white/10 text-text-secondary px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2">
+                            <i class="fab fa-github"></i> View on GitHub
+                        </a>
+                    </div>
+                </div>
+            `;
+        }
+
+        function closeCommitPanel() {
+            document.getElementById('commitDetailPanel').classList.add('hidden');
+            document.getElementById('commitDetailPanel').classList.remove('flex');
+            graphData.selectedCommit = null;
+            renderGitGraph();
+        }
+
+        function showCommitContextMenu(event, sha) {
+            event.preventDefault();
+            const menu = document.getElementById('contextMenu');
+            
+            menu.innerHTML = `
+                <div class="context-menu-item" onclick="selectCommit('${sha}'); hideContextMenu();">
+                    <i class="fas fa-info-circle w-4"></i> View Details
+                </div>
+                <div class="context-menu-item" onclick="copyToClipboard('${sha}'); hideContextMenu();">
+                    <i class="fas fa-copy w-4"></i> Copy SHA
+                </div>
+                <div class="context-menu-divider"></div>
+                <div class="context-menu-item" onclick="checkoutCommit('${sha}'); hideContextMenu();">
+                    <i class="fas fa-code-branch w-4"></i> Checkout
+                </div>
+                <div class="context-menu-item" onclick="createBranchFromCommit('${sha}'); hideContextMenu();">
+                    <i class="fas fa-plus w-4"></i> Create Branch Here
+                </div>
+                <div class="context-menu-item" onclick="cherryPickCommit('${sha}'); hideContextMenu();">
+                    <i class="fas fa-hand-holding w-4"></i> Cherry Pick
+                </div>
+                <div class="context-menu-divider"></div>
+                <div class="context-menu-item danger" onclick="revertCommit('${sha}'); hideContextMenu();">
+                    <i class="fas fa-undo w-4"></i> Revert Commit
+                </div>
+            `;
+            
+            menu.style.left = event.pageX + 'px';
+            menu.style.top = event.pageY + 'px';
+            menu.classList.remove('hidden');
+            
+            // Close on click outside
+            document.addEventListener('click', hideContextMenu);
+        }
+
+        function hideContextMenu() {
+            document.getElementById('contextMenu').classList.add('hidden');
+            document.removeEventListener('click', hideContextMenu);
+        }
+
+        // Graph controls
+        function zoomGraph(factor) {
+            graphZoom *= factor;
+            graphZoom = Math.max(0.5, Math.min(2, graphZoom));
+            document.getElementById('graphSvg').style.transform = `scale(${graphZoom})`;
+            document.getElementById('graphSvg').style.transformOrigin = 'top left';
+            document.getElementById('commitListOverlay').style.transform = `scale(${graphZoom})`;
+            document.getElementById('commitListOverlay').style.transformOrigin = 'top left';
+        }
+
+        function resetGraphZoom() {
+            graphZoom = 1;
+            document.getElementById('graphSvg').style.transform = 'scale(1)';
+            document.getElementById('commitListOverlay').style.transform = 'scale(1)';
+        }
+
+        function filterGraphByBranch(branchName) {
+            // In a full implementation, this would filter commits by branch
+            showToast(`Filtering by branch: ${branchName}`, 'info');
+            renderGitGraph();
+        }
+
+        function searchGraphCommits(query) {
+            if (!query) {
+                renderGitGraph();
+                return;
+            }
+            
+            query = query.toLowerCase();
+            const overlay = document.getElementById('commitListOverlay');
+            const items = overlay.querySelectorAll('[onclick]');
+            
+            items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                if (text.includes(query)) {
+                    item.style.opacity = '1';
+                    item.style.backgroundColor = 'rgba(124, 58, 237, 0.1)';
+                } else {
+                    item.style.opacity = '0.3';
+                    item.style.backgroundColor = '';
+                }
+            });
+        }
+
+        async function refreshGitGraph() {
+            showLoading('Refreshing graph...', 'Fetching latest commits');
+            try {
+                await loadGitGraphData();
+                showToast('Graph refreshed', 'success');
+            } catch (error) {
+                showToast('Failed to refresh: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Branch operations
+        function createBranchModal() {
+            showModal(`
+                <div class="p-6">
+                    <h3 class="text-xl font-bold text-text-primary mb-4 flex items-center gap-2">
+                        <i class="fas fa-code-branch text-branch-main"></i>
+                        Create New Branch
+                    </h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-text-secondary mb-2">Branch Name</label>
+                            <input type="text" id="newBranchName" 
+                                   class="w-full px-4 py-3 bg-surface-light border border-white/10 rounded-xl text-text-primary focus:border-primary focus:outline-none"
+                                   placeholder="feature/my-feature">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-text-secondary mb-2">Base Branch</label>
+                            <select id="baseBranch" class="w-full px-4 py-3 bg-surface-light border border-white/10 rounded-xl text-text-primary">
+                                ${graphData.branches.map(b => 
+                                    `<option value="${b.name}" ${b.name === currentRepo.branch ? 'selected' : ''}>${b.name}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 mt-6">
+                        <button onclick="hideModal()" class="flex-1 bg-white/10 hover:bg-white/20 text-text-secondary px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
+                            Cancel
+                        </button>
+                        <button onclick="createBranch()" class="flex-1 bg-branch-main hover:bg-branch-main/80 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
+                            Create Branch
+                        </button>
+                    </div>
+                </div>
+            `);
+        }
+
+        async function createBranch() {
+            const branchName = document.getElementById('newBranchName').value.trim();
+            const baseBranch = document.getElementById('baseBranch').value;
+            
+            if (!branchName) {
+                showToast('Please enter a branch name', 'warning');
+                return;
+            }
+
+            if (!userPermissions.canPush) {
+                showToast('You do not have permission to create branches', 'error');
+                return;
+            }
+
+            hideModal();
+            showLoading('Creating branch...', branchName);
+
+            try {
+                // Get the SHA of the base branch
+                const refResponse = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/git/refs/heads/${baseBranch}`);
+                const baseSha = refResponse.object.sha;
+
+                // Create new branch
+                await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/git/refs`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        ref: `refs/heads/${branchName}`,
+                        sha: baseSha
+                    })
+                });
+
+                showToast(`Branch '${branchName}' created successfully!`, 'success');
+                await loadGitGraphData();
+                await loadBranches();
+            } catch (error) {
+                showToast('Failed to create branch: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function createBranchFromCommit(sha) {
+            showModal(`
+                <div class="p-6">
+                    <h3 class="text-xl font-bold text-text-primary mb-4 flex items-center gap-2">
+                        <i class="fas fa-code-branch text-branch-main"></i>
+                        Create Branch from Commit
+                    </h3>
+                    <div class="mb-4 text-sm text-text-secondary">
+                        Creating branch from commit: <span class="font-mono text-primary">${sha.substring(0, 7)}</span>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-text-secondary mb-2">Branch Name</label>
+                        <input type="text" id="branchFromCommitName" 
+                               class="w-full px-4 py-3 bg-surface-light border border-white/10 rounded-xl text-text-primary focus:border-primary focus:outline-none"
+                               placeholder="feature/my-feature">
+                    </div>
+                    <div class="flex gap-3 mt-6">
+                        <button onclick="hideModal()" class="flex-1 bg-white/10 hover:bg-white/20 text-text-secondary px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
+                            Cancel
+                        </button>
+                        <button onclick="createBranchFromSha('${sha}')" class="flex-1 bg-branch-main hover:bg-branch-main/80 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-colors">
+                            Create Branch
+                        </button>
+                    </div>
+                </div>
+            `);
+        }
+
+        async function createBranchFromSha(sha) {
+            const branchName = document.getElementById('branchFromCommitName').value.trim();
+            
+            if (!branchName) {
+                showToast('Please enter a branch name', 'warning');
+                return;
+            }
+
+            if (!userPermissions.canPush) {
+                showToast('You do not have permission to create branches', 'error');
+                return;
+            }
+
+            hideModal();
+            showLoading('Creating branch...', branchName);
+
+            try {
+                await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/git/refs`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        ref: `refs/heads/${branchName}`,
+                        sha: sha
+                    })
+                });
+
+                showToast(`Branch '${branchName}' created successfully!`, 'success');
+                await loadGitGraphData();
+                await loadBranches();
+            } catch (error) {
+                showToast('Failed to create branch: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function deleteBranch(branchName) {
+            if (branchName === currentRepo.branch) {
+                showToast('Cannot delete the current branch', 'error');
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to delete branch '${branchName}'?`)) {
+                return;
+            }
+
+            if (!userPermissions.canPush) {
+                showToast('You do not have permission to delete branches', 'error');
+                return;
+            }
+
+            showLoading('Deleting branch...', branchName);
+
+            try {
+                await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/git/refs/heads/${branchName}`, {
+                    method: 'DELETE'
+                });
+
+                showToast(`Branch '${branchName}' deleted`, 'success');
+                await loadGitGraphData();
+                await loadBranches();
+            } catch (error) {
+                showToast('Failed to delete branch: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Commit operations (visual feedback - actual operations would require more setup)
+        function checkoutCommit(sha) {
+            showToast(`Checkout to ${sha.substring(0, 7)} - This would update your local working copy`, 'info');
+        }
+
+        function revertCommit(sha) {
+            if (!userPermissions.canPush) {
+                showToast('You do not have permission to revert commits', 'error');
+                return;
+            }
+            showToast(`Revert commit ${sha.substring(0, 7)} - This would create a new commit undoing changes`, 'info');
+        }
+
+        function cherryPickCommit(sha) {
+            showToast(`Cherry-pick ${sha.substring(0, 7)} - This would apply this commit to current branch`, 'info');
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Copied to clipboard!', 'success');
+            });
+        }
+
+        // --- File Tree & Editor ---
+        async function loadFileTree() {
+            const treeData = await getFromIndexedDB('metadata', 'tree');
+            if (!treeData || !treeData.value) {
+                document.getElementById('fileTree').innerHTML = '<div class="text-center text-text-secondary py-8">Clone a repository first</div>';
+                return;
+            }
+            
+            const dirtyFiles = await getDirtyFiles();
+            const dirtyPaths = new Set(dirtyFiles.map(f => f.path));
+
+            const treeContainer = document.getElementById('fileTree');
+            treeContainer.innerHTML = '';
+
+            const buildTree = (items) => {
+                const structure = {};
+                
+                items.forEach(item => {
+                    if (item.type === 'blob') {
+                        const parts = item.path.split('/');
+                        let current = structure;
+                        
+                        parts.forEach((part, index) => {
+                            if (index === parts.length - 1) {
+                                current[part] = { type: 'file', path: item.path };
+                            } else {
+                                current[part] = current[part] || { type: 'dir', children: {} };
+                                current = current[part].children;
+                            }
+                        });
+                    }
+                });
+                
+                return structure;
+            };
+
+            const renderTree = (node, level = 0) => {
+                const container = document.createElement('div');
+                
+                Object.entries(node).sort(([a, objA], [b, objB]) => {
+                    if (objA.type === objB.type) return a.localeCompare(b);
+                    return objA.type === 'dir' ? -1 : 1;
+                }).forEach(([name, obj]) => {
+                    const item = document.createElement('div');
+                    item.style.paddingLeft = (level * 16) + 'px';
+                    item.className = 'py-1.5 px-2 hover:bg-white/5 cursor-pointer rounded-lg flex items-center gap-2 text-text-primary';
+                    
+                    if (obj.type === 'dir') {
+                        item.innerHTML = `<i class="fas fa-folder text-accent"></i> <span>${name}</span>`;
+                        item.onclick = () => {
+                            const children = item.nextElementSibling;
+                            if (children && children.classList.contains('tree-children')) {
+                                children.classList.toggle('hidden');
+                                item.querySelector('i').classList.toggle('fa-folder');
+                                item.querySelector('i').classList.toggle('fa-folder-open');
+                            }
+                        };
+                        container.appendChild(item);
+                        
+                        const children = document.createElement('div');
+                        children.className = 'tree-children';
+                        children.appendChild(renderTree(obj.children, level + 1));
+                        container.appendChild(children);
+                    } else {
+                        const isDirty = dirtyPaths.has(obj.path);
+                        item.innerHTML = `
+                            <i class="fas fa-file-code text-primary"></i> 
+                            <span>${name}</span>
+                            ${isDirty ? '<span class="file-modified-indicator">●</span>' : ''}
+                        `;
+                        item.onclick = () => openFile(obj.path);
+                        container.appendChild(item);
+                    }
+                });
+                
+                return container;
+            };
+
+            const tree = buildTree(treeData.value);
+            treeContainer.appendChild(renderTree(tree));
+        }
+
+        async function openFile(path) {
+            const file = await getFromIndexedDB('files', path);
+            if (!file) {
+                showToast('File not found', 'error');
+                return;
+            }
+
+            currentFile = file;
+            document.getElementById('editorFileName').innerHTML = `<i class="fas fa-file-code"></i> ${path}`;
+
+            if (!monacoEditor) {
+                await initMonacoEditor();
+            }
+
+            const content = file.encoding === 'base64' ? atob(file.content) : file.content;
+            const language = detectLanguage(path);
+            
+            monaco.editor.setModelLanguage(monacoEditor.getModel(), language);
+            monacoEditor.setValue(content);
+
+            document.getElementById('saveFileBtn').disabled = true;
+            document.getElementById('discardBtn').disabled = true;
+        }
+
+        async function initMonacoEditor() {
+            return new Promise((resolve, reject) => {
+                require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+                require(['vs/editor/editor.main'], function () {
+                    // Define custom dark theme
+                    monaco.editor.defineTheme('customDark', {
+                        base: 'vs-dark',
+                        inherit: true,
+                        rules: [],
+                        colors: {
+                            'editor.background': '#1e1b2e',
+                            'editor.foreground': '#f4f4f5',
+                            'editorLineNumber.foreground': '#71717a',
+                            'editorLineNumber.activeForeground': '#a1a1aa',
+                            'editor.selectionBackground': '#7c3aed40',
+                            'editor.lineHighlightBackground': '#2d2a42',
+                        }
+                    });
+
+                    monacoEditor = monaco.editor.create(document.getElementById('editor'), {
+                        value: '// Select a file to edit',
+                        language: 'javascript',
+                        theme: 'customDark',
+                        automaticLayout: true,
+                        minimap: { enabled: false },
+                        fontSize: 13,
+                        fontFamily: '"JetBrains Mono", monospace',
+                        padding: { top: 16 },
+                        scrollBeyondLastLine: false,
+                        renderLineHighlight: 'line',
+                    });
+
+                    monacoEditor.onDidChangeModelContent(() => {
+                        if (currentFile) {
+                            const enabled = monacoEditor.getValue() !== (currentFile.encoding === 'base64' ? atob(currentFile.content) : currentFile.content);
+                            document.getElementById('saveFileBtn').disabled = !enabled;
+                            document.getElementById('discardBtn').disabled = !enabled;
+                        }
+                    });
+
+                    resolve();
+                });
+            });
+        }
+
+        function detectLanguage(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const langMap = {
+                'js': 'javascript', 'jsx': 'javascript', 'ts': 'typescript', 'tsx': 'typescript',
+                'py': 'python', 'java': 'java', 'cpp': 'cpp', 'c': 'c', 'cs': 'csharp',
+                'html': 'html', 'css': 'css', 'scss': 'scss', 'json': 'json',
+                'md': 'markdown', 'xml': 'xml', 'yaml': 'yaml', 'yml': 'yaml',
+                'sh': 'shell', 'bash': 'shell', 'sql': 'sql', 'go': 'go',
+                'rb': 'ruby', 'php': 'php', 'swift': 'swift', 'kt': 'kotlin',
+                'rs': 'rust', 'vue': 'html', 'svelte': 'html'
+            };
+            return langMap[ext] || 'plaintext';
+        }
+
+        async function saveFileChanges() {
+            if (!currentFile || !monacoEditor) return;
+            
+            const newContent = monacoEditor.getValue();
+            const encodedContent = btoa(unescape(encodeURIComponent(newContent)));
+            
+            currentFile.content = encodedContent;
+            currentFile.encoding = 'base64';
+            currentFile.isDirty = true;
+            
+            await saveToIndexedDB('files', currentFile);
+            await loadFileTree();
+            
+            document.getElementById('saveFileBtn').disabled = true;
+            document.getElementById('discardBtn').disabled = true;
+            
+            showToast('File saved locally', 'success');
+        }
+
+        async function discardFileChanges() {
+            if (!currentFile) return;
+            const content = currentFile.encoding === 'base64' ? atob(currentFile.content) : currentFile.content;
+            monacoEditor.setValue(content);
+            document.getElementById('saveFileBtn').disabled = true;
+            document.getElementById('discardBtn').disabled = true;
+        }
+
+        // --- Source Control ---
+        async function loadModifiedFilesList() {
+            const dirtyFiles = await getDirtyFiles();
+            const container = document.getElementById('modifiedFilesList');
+            
+            if (dirtyFiles.length === 0) {
+                container.innerHTML = '<div class="text-center text-text-secondary py-4">No modified files</div>';
+                return;
+            }
+            
+            container.innerHTML = dirtyFiles.map(file => `
+                <div class="bg-surface-light rounded-xl p-3 flex items-center gap-3">
+                    <i class="fas fa-file-code text-accent"></i>
+                    <span class="flex-1 text-sm text-text-primary font-mono truncate">${file.path}</span>
+                    <button onclick="openFile('${file.path}'); switchView('files');" class="text-text-secondary hover:text-primary transition-colors">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        async function commitChanges() {
+            const message = document.getElementById('commitMessage').value.trim();
+            if (!message) {
+                showToast('Please enter a commit message', 'warning');
+                return;
+            }
+
+            if (!userPermissions.canPush) {
+                showToast('You do not have push permissions', 'error');
+                return;
+            }
+
+            const dirtyFiles = await getDirtyFiles();
+            if (dirtyFiles.length === 0) {
+                showToast('No changes to commit', 'warning');
+                return;
+            }
+
+            showLoading('Committing changes...', 'Please wait');
+
+            try {
+                const gitConfig = await getFromIndexedDB('metadata', 'gitConfig');
+                const author = {
+                    name: gitConfig?.value?.name || userPermissions.username,
+                    email: gitConfig?.value?.email || `${userPermissions.username}@users.noreply.github.com`,
+                    date: new Date().toISOString()
+                };
+
+                const ref = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/git/refs/heads/${currentRepo.branch}`);
+                const latestCommitSha = ref.object.sha;
+
+                const commit = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/git/commits/${latestCommitSha}`);
+                const baseTreeSha = commit.tree.sha;
+
+                const tree = await Promise.all(dirtyFiles.map(async (file) => {
+                    const blobResponse = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/git/blobs`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            content: file.content,
+                            encoding: 'base64'
+                        })
+                    });
+
+                    return {
+                        path: file.path,
+                        mode: '100644',
+                        type: 'blob',
+                        sha: blobResponse.sha
+                    };
+                }));
+
+                const treeResponse = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/git/trees`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        base_tree: baseTreeSha,
+                        tree: tree
+                    })
+                });
+
+                const newCommit = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/git/commits`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        message: message,
+                        tree: treeResponse.sha,
+                        parents: [latestCommitSha],
+                        author: author,
+                        committer: author
+                    })
+                });
+
+                await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/git/refs/heads/${currentRepo.branch}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        sha: newCommit.sha
+                    })
+                });
+
+                for (const file of dirtyFiles) {
+                    file.isDirty = false;
+                    await saveToIndexedDB('files', file);
+                }
+
+                document.getElementById('commitMessage').value = '';
+                await loadModifiedFilesList();
+                await loadFileTree();
+                await loadCommits();
+                await loadGitGraphData();
+                
+                showToast('Changes committed and pushed!', 'success');
+            } catch (error) {
+                showToast('Commit failed: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // --- Search ---
+        async function searchFiles() {
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            if (!query) {
+                showToast('Enter a search query', 'warning');
+                return;
+            }
+
+            showLoading('Searching...', 'Please wait');
+            const resultsContainer = document.getElementById('searchResults');
+
+            try {
+                const files = await getAllFromIndexedDB('files');
+                const results = [];
+
+                for (const file of files) {
+                    const content = file.encoding === 'base64' ? atob(file.content) : file.content;
+                    const lines = content.split('\n');
+                    
+                    lines.forEach((line, index) => {
+                        if (line.toLowerCase().includes(query)) {
+                            results.push({
+                                path: file.path,
+                                line: index + 1,
+                                content: line.trim()
+                            });
+                        }
+                    });
+                }
+
+                if (results.length === 0) {
+                    resultsContainer.innerHTML = '<div class="text-center text-text-secondary py-8">No results found</div>';
+                } else {
+                    resultsContainer.innerHTML = `
+                        <h3 class="text-sm font-medium text-text-secondary mb-3">Found ${results.length} results</h3>
+                        <div class="space-y-2 max-h-96 overflow-y-auto">
+                            ${results.slice(0, 100).map(r => `
+                                <div class="bg-surface-light rounded-xl p-3 cursor-pointer hover:bg-surface-lighter transition-colors" onclick="openFile('${r.path}'); switchView('files');">
+                                    <div class="text-xs text-text-secondary mb-1">${r.path}:${r.line}</div>
+                                    <div class="font-mono text-sm text-text-primary truncate">${r.content}</div>
+                                </div>
+                            `).join('')}
+                            ${results.length > 100 ? '<div class="text-center text-sm text-text-secondary mt-4">Showing first 100 results</div>' : ''}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                showToast('Search failed: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // --- Commits ---
+        async function loadCommits() {
+            try {
+                const commits = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/commits?per_page=10`);
+                const container = document.getElementById('commitsList');
+                
+                container.innerHTML = commits.map(c => `
+                    <div class="bg-surface-light rounded-xl p-4 hover:bg-surface-lighter transition-colors cursor-pointer" onclick="switchView('git-graph'); setTimeout(() => selectCommit('${c.sha}'), 100);">
+                        <div class="flex items-start gap-3">
+                            <div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                                <i class="fas fa-code-commit text-primary"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-medium text-text-primary truncate">${c.commit.message.split('\n')[0]}</p>
+                                <p class="text-sm text-text-secondary mt-1">
+                                    by ${c.commit.author.name} • ${new Date(c.commit.author.date).toLocaleString()}
+                                </p>
+                                <p class="text-xs text-text-secondary mt-1 font-mono">${c.sha.substring(0, 7)}</p>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                document.getElementById('commitsList').innerHTML = '<div class="text-center text-text-secondary py-8">Failed to load commits</div>';
+            }
+        }
+
+        // --- Branches ---
+        async function loadBranches() {
+            try {
+                const branches = await githubFetch(`/repos/${currentRepo.owner}/${currentRepo.repo}/branches`);
+                const container = document.getElementById('branchesList');
+                
+                document.getElementById('statBranches').textContent = branches.length;
+                
+                container.innerHTML = branches.map((b, idx) => {
+                    const branchType = b.name.includes('feature') ? 'feature' : 
+                                      b.name.includes('hotfix') ? 'hotfix' :
+                                      b.name.includes('develop') ? 'develop' :
+                                      b.name === 'main' || b.name === 'master' ? 'main' : 'feature';
+                    const color = BRANCH_COLORS[idx % BRANCH_COLORS.length];
+                    
+                    return `
+                    <div class="bg-surface-light rounded-xl p-4 flex items-center justify-between group">
+                        <div class="flex items-center gap-3">
+                            <div class="w-3 h-3 rounded-full" style="background: ${color}"></div>
+                            <span class="font-medium text-text-primary">${b.name}</span>
+                            ${b.name === currentRepo.branch ? `
+                                <span class="branch-badge ${branchType}">
+                                    <i class="fas fa-check text-[10px]"></i> Current
+                                </span>
+                            ` : ''}
+                        </div>
+                        <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="switchBranch('${b.name}')" class="text-text-secondary hover:text-primary transition-colors p-2" title="Switch to this branch">
+                                <i class="fas fa-code-branch"></i>
+                            </button>
+                            ${b.name !== currentRepo.branch && b.name !== 'main' && b.name !== 'master' ? `
+                                <button onclick="deleteBranch('${b.name}')" class="text-text-secondary hover:text-branch-hotfix transition-colors p-2" title="Delete branch">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `}).join('');
+            } catch (error) {
+                document.getElementById('branchesList').innerHTML = '<div class="text-center text-text-secondary py-8">Failed to load branches</div>';
+            }
+        }
+
+        async function switchBranch(branchName) {
+            if (branchName === currentRepo.branch) {
+                showToast('Already on this branch', 'info');
+                return;
+            }
+
+            const dirtyFiles = await getDirtyFiles();
+            if (dirtyFiles.length > 0) {
+                if (!confirm(`You have ${dirtyFiles.length} uncommitted changes. Switch branch anyway? Changes will be lost.`)) {
+                    return;
+                }
+            }
+
+            showLoading('Switching branch...', branchName);
+
+            try {
+                currentRepo.branch = branchName;
+                await saveToIndexedDB('metadata', { key: 'currentRepo', value: currentRepo });
+                
+                document.getElementById('branchSelect').value = branchName;
+                
+                // Re-clone the repository with the new branch
+                await clearIndexedDB('files');
+                await cloneRepository();
+                
+                showToast(`Switched to branch '${branchName}'`, 'success');
+            } catch (error) {
+                showToast('Failed to switch branch: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // --- Download ZIP ---
+        async function downloadAsZip() {
+            if (typeof JSZip === 'undefined' || typeof saveAs === 'undefined') {
+                showToast('Download libraries are missing', 'error');
+                return;
+            }
+            showLoading('Creating ZIP...', 'This may take a moment');
+            try {
+                const files = await getAllFromIndexedDB('files');
+                const zip = new JSZip();
+
+                files.forEach(file => {
+                    if (file.encoding === 'base64') {
+                        zip.file(file.path, file.content, { base64: true });
+                    }
+                });
+
+                const blob = await zip.generateAsync({ type: 'blob' });
+                saveAs(blob, `${currentRepo.owner}-${currentRepo.repo}.zip`);
+                showToast('ZIP downloaded successfully!', 'success');
+            } catch (error) {
+                showToast('ZIP creation failed: ' + error.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // --- Settings ---
+        async function saveSettings() {
+            const userName = document.getElementById('gitUserName').value.trim();
+            const userEmail = document.getElementById('gitUserEmail').value.trim();
+
+            await saveToIndexedDB('metadata', {
+                key: 'gitConfig',
+                value: { name: userName, email: userEmail }
+            });
+
+            showToast('Settings saved', 'success');
+        }
+
+        async function showStorageInfo() {
+            try {
+                const files = await getAllFromIndexedDB('files');
+                const metadata = await getAllFromIndexedDB('metadata');
+                
+                const totalSize = files.reduce((sum, f) => sum + (f.size || 0), 0);
+                
+                const info = document.getElementById('storageInfo');
+                info.textContent = `
+Files stored: ${files.length}
+Metadata entries: ${metadata.length}
+Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB
+Database: IndexedDB v7
+Authentication: ${userPermissions.authenticated ? 'Active' : 'Not active'}
+                `;
+            } catch (error) {
+                document.getElementById('storageInfo').textContent = "Could not calculate storage info.";
+            }
+        }
+
+        async function loadRepoInfo() {
+            const repoInfo = await getFromIndexedDB('metadata', 'repoInfo');
+            if (!repoInfo) {
+                document.getElementById('infoOutput').textContent = "No repository info found. Clone a repository first.";
+                return;
+            }
+            const info = repoInfo.value;
+            document.getElementById('infoOutput').textContent = `
+Repository Information
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Name: ${info.name}
+Full Name: ${info.full_name}
+Description: ${info.description || 'N/A'}
+Owner: ${info.owner.login}
+Private: ${info.private ? 'Yes' : 'No'}
+Default Branch: ${info.default_branch}
+
+Created: ${new Date(info.created_at).toLocaleString()}
+Updated: ${new Date(info.updated_at).toLocaleString()}
+Pushed: ${new Date(info.pushed_at).toLocaleString()}
+
+Stars: ⭐ ${info.stargazers_count}
+Forks: 🍴 ${info.forks_count}
+Watchers: 👀 ${info.watchers_count}
+Open Issues: 🐛 ${info.open_issues_count}
+
+Size: ${(info.size / 1024).toFixed(2)} MB
+Language: ${info.language || 'N/A'}
+License: ${info.license?.name || 'N/A'}
+
+Homepage: ${info.homepage || 'N/A'}
+Clone URL: ${info.clone_url}
+            `;
+        }
+
+        async function clearAllData() {
+            if (!confirm('This will delete all cloned repositories and settings. Continue?')) {
+                return;
+            }
+            showLoading('Clearing data...', 'Please wait');
+            try {
+                if (db) {
+                    db.close();
+                }
+                
+                await new Promise((resolve, reject) => {
+                    const deleteRequest = indexedDB.deleteDatabase('GitHubProDB');
+                    
+                    deleteRequest.onsuccess = () => resolve();
+                    deleteRequest.onerror = (event) => reject(event.target.error);
+                    deleteRequest.onblocked = () => setTimeout(() => location.reload(), 500);
+                });
+                
+                location.reload();
+            } catch (error) {
+                showToast('Clear failed: ' + error.message, 'error');
+                hideLoading();
+                setTimeout(() => location.reload(), 1500);
+            }
+        }
+
+        // --- Initialize ---
+        window.addEventListener('load', async () => {
+            try {
+                await initDB();
+                log('✓ Database initialized');
+                
+                await new Promise(resolve => setTimeout(resolve, 200));
+                
+                const savedRepo = await getFromIndexedDB('metadata', 'currentRepo');
+                if (savedRepo) {
+                    currentRepo = savedRepo.value;
+                    document.getElementById('tokenInput').value = currentRepo.token || '';
+                    document.getElementById('repoInput').value = `${currentRepo.owner}/${currentRepo.repo}`;
+                    document.getElementById('branchSelect').innerHTML = `<option>${currentRepo.branch}</option>`;
+                    
+                    const savedPerms = await getFromIndexedDB('metadata', 'userPermissions');
+                    if (savedPerms) {
+                        userPermissions = savedPerms.value;
+                        updatePermissionUI();
+                    }
+                    
+                    await updateRepositoryUI();
+                    await loadFileTree();
+                    await loadGitGraphData();
+                    
+                    log('✓ Loaded cached repository');
+                } else {
+                    switchView('repo');
+                }
+
+                const gitConfig = await getFromIndexedDB('metadata', 'gitConfig');
+                if (gitConfig) {
+                    document.getElementById('gitUserName').value = gitConfig.value.name;
+                    document.getElementById('gitUserEmail').value = gitConfig.value.email;
+                }
+
+                await showStorageInfo();
+                log('🚀 GitHub Pro Client Ready!');
+                
+                initMonacoEditor().catch(error => {
+                    console.error('Monaco editor failed to load', error);
+                });
+                
+            } catch (error) {
+                console.error('Initialization error:', error);
+                showToast(`Initialization failed: ${error.message}`, 'error');
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            // Escape to close panels/modals
+            if (e.key === 'Escape') {
+                hideModal();
+                hideContextMenu();
+                closeCommitPanel();
+            }
+            
+            // Ctrl+S to save file
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                if (currentFile && !document.getElementById('saveFileBtn').disabled) {
+                    saveFileChanges();
+                }
+            }
+            
+            // Ctrl+G to open git graph
+            if (e.ctrlKey && e.key === 'g') {
+                e.preventDefault();
+                switchView('git-graph');
+            }
+        });
+    </script>
+</body>
+</html>
