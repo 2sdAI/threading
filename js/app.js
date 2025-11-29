@@ -93,64 +93,251 @@ window.createNewProject = function() {
 };
 
 window.loadChat = async function(chatId) {
-    console.log('🖱️ loadChat clicked', chatId);
+    console.log('🖱️ loadChat:', chatId);
     if (!ensureReady()) return;
     try {
-        const chat = await chatManager.loadChat(chatId);
+        await chatManager.loadChat(chatId);
+        const chat = chatManager.getCurrentChat();
         ui.showView('chatView');
         ui.updateChatHeader(chat);
         ui.renderMessages(chat.messages);
         ui.renderSidebar();
-        await updateChatProviderSelectors();
-        ui.closeSidebar();
+        await ui.updateChatProviderSelectors(chat);
         ui.focusInput();
+        ui.closeSidebar();
     } catch (error) {
         console.error(error);
         ui.notify('Error loading chat', 'error');
     }
 };
 
-window.clearChat = async function() {
-    if (!ensureReady()) return;
-    if (!confirm('Clear all messages?')) return;
-    try {
-        const chatId = chatManager.currentChatId;
-        await chatManager.clearChatMessages(chatId);
-        const chat = chatManager.getCurrentChat();
-        ui.renderMessages(chat.messages);
-        ui.notify('Chat cleared', 'success');
+// --- CHAT CARD ACTIONS ---
 
-        // Broadcast to other windows
-        if (syncManager) {
-            syncManager.broadcast('chat-updated', { chatId: chatId });
+/**
+ * Prompt to delete a chat
+ */
+window.deleteChatPrompt = function(chatId) {
+    if (!ensureReady()) return;
+
+    const chat = chatManager.getChat(chatId);
+    if (!chat) return;
+
+    ui.showConfirmModal({
+        title: 'Delete Chat',
+        message: `Are you sure you want to delete "${chat.title}"? This action cannot be undone.`,
+        icon: 'trash-2',
+        iconColor: 'text-red-400',
+        confirmText: 'Delete',
+        confirmClass: 'bg-red-500 hover:bg-red-600 text-white',
+        onConfirm: async () => {
+            try {
+                await chatManager.deleteChat(chatId);
+                ui.hideModal('confirmModal');
+                ui.renderSidebar();
+
+                // If deleted chat was active, show welcome view
+                if (chatManager.currentChatId === null) {
+                    ui.showView('welcomeView');
+                }
+
+                ui.notify('Chat deleted', 'success');
+
+                // Broadcast to other tabs
+                if (syncManager) {
+                    syncManager.broadcast('chat-deleted', { chatId });
+                }
+            } catch (error) {
+                console.error(error);
+                ui.notify('Error deleting chat', 'error');
+            }
         }
-    } catch (_e) { ui.notify('Error clearing chat', _e); }
+    });
 };
+
+/**
+ * Prompt to clone a chat
+ */
+window.cloneChatPrompt = function(chatId) {
+    if (!ensureReady()) return;
+
+    const chat = chatManager.getChat(chatId);
+    if (!chat) return;
+
+    ui.showConfirmModal({
+        title: 'Clone Chat',
+        message: `Create a copy of "${chat.title}" with all messages?`,
+        icon: 'copy',
+        iconColor: 'text-blue-400',
+        confirmText: 'Clone',
+        confirmClass: 'bg-blue-500 hover:bg-blue-600 text-white',
+        onConfirm: async () => {
+            try {
+                const clonedChat = await chatManager.cloneChat(chatId);
+                ui.hideModal('confirmModal');
+                ui.renderSidebar();
+
+                // Load the cloned chat
+                await window.loadChat(clonedChat.id);
+
+                ui.notify('Chat cloned successfully', 'success');
+
+                // Broadcast to other tabs
+                if (syncManager) {
+                    syncManager.broadcast('chat-created', { chatId: clonedChat.id });
+                }
+            } catch (error) {
+                console.error(error);
+                ui.notify('Error cloning chat', 'error');
+            }
+        }
+    });
+};
+
+/**
+ * Toggle chat pin status
+ */
+window.toggleChatPin = async function(chatId) {
+    if (!ensureReady()) return;
+
+    try {
+        const chat = await chatManager.toggleChatPin(chatId);
+        if (chat) {
+            ui.renderSidebar();
+            ui.notify(chat.pinned ? 'Chat pinned' : 'Chat unpinned', 'success');
+
+            // Broadcast to other tabs
+            if (syncManager) {
+                syncManager.broadcast('chat-updated', { chatId });
+            }
+        }
+    } catch (error) {
+        console.error(error);
+        ui.notify('Error updating chat', 'error');
+    }
+};
+
+/**
+ * Prompt to archive/unarchive a chat
+ */
+window.archiveChatPrompt = function(chatId) {
+    if (!ensureReady()) return;
+
+    const chat = chatManager.getChat(chatId);
+    if (!chat) return;
+
+    const isArchived = chat.archived;
+
+    ui.showConfirmModal({
+        title: isArchived ? 'Unarchive Chat' : 'Archive Chat',
+        message: isArchived
+            ? `Restore "${chat.title}" from archive?`
+            : `Archive "${chat.title}"? It will be hidden from the main list.`,
+        icon: 'archive',
+        iconColor: isArchived ? 'text-green-400' : 'text-orange-400',
+        confirmText: isArchived ? 'Unarchive' : 'Archive',
+        confirmClass: isArchived
+            ? 'bg-green-500 hover:bg-green-600 text-white'
+            : 'bg-orange-500 hover:bg-orange-600 text-white',
+        onConfirm: async () => {
+            try {
+                const updatedChat = await chatManager.toggleChatArchive(chatId);
+                ui.hideModal('confirmModal');
+                ui.renderSidebar();
+
+                // If archived chat was active, show welcome view
+                if (updatedChat.archived && chatManager.currentChatId === chatId) {
+                    chatManager.currentChatId = null;
+                    ui.showView('welcomeView');
+                }
+
+                ui.notify(updatedChat.archived ? 'Chat archived' : 'Chat unarchived', 'success');
+
+                // Broadcast to other tabs
+                if (syncManager) {
+                    syncManager.broadcast('chat-updated', { chatId });
+                }
+            } catch (error) {
+                console.error(error);
+                ui.notify('Error updating chat', 'error');
+            }
+        }
+    });
+};
+
+/**
+ * Handle confirm modal confirm button click
+ */
+window.handleConfirmModalConfirm = function() {
+    if (window._confirmModalCallback) {
+        window._confirmModalCallback();
+    }
+};
+
+/**
+ * Close confirm modal
+ */
+window.closeConfirmModal = function() {
+    ui.hideModal('confirmModal');
+    window._confirmModalCallback = null;
+};
+
+// --- MESSAGING ---
 
 window.sendMessage = async function() {
     if (!ensureReady()) return;
     const input = document.getElementById('messageInput');
-    const text = input.value.trim();
-    if (!text) return;
+    const content = input.value.trim();
+    if (!content) return;
 
     const chat = chatManager.getCurrentChat();
-    if (!chat) { return ui.notify('No active chat', 'error'); }
+    if (!chat) {
+        ui.notify('No chat selected', 'error');
+        return;
+    }
 
-    await chatManager.addMessage(chat.id, new Message({ role: 'user', content: text }));
-    ui.renderMessages(chat.messages);
+    // Add user message
+    await chatManager.addMessage(chat.id, new Message({
+        role: 'user',
+        content: content
+    }));
+
     ui.clearInput();
-    ui.showTypingIndicator();
+    ui.renderMessages(chat.messages);
+    ui.renderSidebar();
 
-    // Broadcast user message to other tabs
+    // Broadcast to other tabs
     if (syncManager) {
         syncManager.broadcast('message-added', { chatId: chat.id });
     }
 
-    try {
-        const pId = document.getElementById('chatProviderSelect').value;
-        const mId = document.getElementById('chatModelSelect').value;
+    // Get AI response
+    const providerId = document.getElementById('chatProviderSelect').value;
+    const modelId = document.getElementById('chatModelSelect').value;
 
-        const response = await chatManager.sendToAI(text, pId, mId);
+    if (!providerId) {
+        ui.notify('No AI provider selected', 'error');
+        return;
+    }
+
+    // Show typing indicator
+    const typingDiv = document.createElement('div');
+    typingDiv.id = 'typing';
+    typingDiv.className = 'flex justify-start mb-4';
+    typingDiv.innerHTML = `
+        <div class="bg-white/10 border border-white/10 rounded-lg px-4 py-3">
+            <div class="flex items-center gap-2 text-white/60">
+                <div class="typing-dots">
+                    <span></span><span></span><span></span>
+                </div>
+                <span class="text-sm">AI is thinking...</span>
+            </div>
+        </div>
+    `;
+    document.getElementById('messagesContainer').appendChild(typingDiv);
+    ui.scrollToBottom();
+
+    try {
+        const response = await chatManager.sendToAI(chat.id, providerId, modelId);
 
         document.getElementById('typing')?.remove();
 
@@ -231,8 +418,8 @@ window.updateChatSettingsModels = async function() {
     provider.models.forEach(m => {
         const option = document.createElement('option');
         option.value = m.id;
-        option.textContent = m.name + (m.description ? ` - ${m.description}` : '');
-        if (chat && chat.defaultModelId === m.id) option.selected = true;
+        option.textContent = m.name + (m.description ? ` (${m.description})` : '');
+        if (chat.defaultModelId === m.id) option.selected = true;
         modelSelect.appendChild(option);
     });
 };
@@ -242,71 +429,51 @@ window.saveChatSettings = async function() {
     const chat = chatManager.getCurrentChat();
     if (!chat) return;
 
-    const title = document.getElementById('chatSettingsTitle').value.trim();
-    const providerId = document.getElementById('chatSettingsProvider').value;
-    const modelId = document.getElementById('chatSettingsModel').value;
+    chat.title = document.getElementById('chatSettingsTitle').value.trim() || 'New Chat';
+    chat.defaultProviderId = document.getElementById('chatSettingsProvider').value || null;
+    chat.defaultModelId = document.getElementById('chatSettingsModel').value || null;
 
-    if (title) {
-        await chatManager.updateChatTitle(chat.id, title);
-    }
-
-    if (providerId) {
-        await chatManager.updateChatProvider(chat.id, providerId, modelId);
-    }
-
+    await chatManager.saveChat(chat);
     ui.hideModal('chatSettingsModal');
     ui.updateChatHeader(chat);
-    await updateChatProviderSelectors();
+    ui.renderSidebar();
     ui.notify('Chat settings saved', 'success');
 
-    // Broadcast to other windows
+    // Broadcast to other tabs
     if (syncManager) {
         syncManager.broadcast('chat-updated', { chatId: chat.id });
     }
 };
 
-window.closeChatSettings = function() {
-    ui.hideModal('chatSettingsModal');
-};
+window.closeChatSettings = () => ui.hideModal('chatSettingsModal');
 
-// --- SETTINGS & PROVIDERS ---
+// --- NAVIGATION & SETTINGS VIEW ---
 
 window.navigateToSettings = function() {
-    if (ui) {
-        ui.showView('settingsView');
-        window.switchSettingsTab('providers');
-    }
+    console.log('🖱️ navigateToSettings');
+    if (!ensureReady()) return;
+    ui.showView('settingsView');
+    ui.closeSidebar();
+    window.renderProviders();
+    lucide.createIcons();
 };
 
-window.closeSettings = function() {
-    if (!ui) return;
-    chatManager.currentChatId ? ui.showView('chatView') : ui.showView('welcomeView');
+window.backToWelcome = function() {
+    if (!ensureReady()) return;
+    chatManager.currentChatId = null;
+    ui.showView('welcomeView');
 };
 
-window.switchSettingsTab = function(tab) {
-    ['providers', 'agents'].forEach(t => {
-        const btn = document.getElementById(`settingsTab-${t}`);
-        const content = document.getElementById(`settingsContent-${t}`);
-        if (btn && content) {
-            const isActive = t === tab;
-            btn.classList.toggle('border-white', isActive);
-            btn.classList.toggle('border-transparent', !isActive);
-            btn.classList.toggle('text-white', isActive);
-            btn.classList.toggle('text-white/60', !isActive);
-            content.style.display = isActive ? 'block' : 'none';
-        }
-    });
-    if (tab === 'providers') window.renderProviders();
-};
+// --- PROVIDER MANAGEMENT ---
 
 window.renderProviders = async function() {
     if (!ensureReady()) return;
-    const container = document.getElementById('providersList');
     const providers = await chatManager.providerStorage.getAllProviders();
     const activeId = await chatManager.providerStorage.getActiveProviderID();
+    const container = document.getElementById('providersContainer');
 
-    if (providers.length === 0) {
-        container.innerHTML = '<div class="text-white/40 text-center p-8 border border-dashed border-white/20 rounded-xl">No providers. Add one!</div>';
+    if (!providers.length) {
+        container.innerHTML = '<div class="text-white/50">No providers configured. Add one!</div>';
         return;
     }
 
@@ -334,6 +501,7 @@ window.renderProviders = async function() {
             <div class="flex gap-3 mt-4">
                 ${!isActive ? `<button onclick="window.setActiveProvider('${p.id}')" class="flex-1 bg-green-600 text-white px-4 py-2 rounded text-sm">Set Active</button>` : ''}
                 <button onclick="window.toggleProviderEnabled('${p.id}')" class="flex-1 bg-white/10 text-white px-4 py-2 rounded text-sm">${p.enabled ? 'Disable' : 'Enable'}</button>
+                <button onclick="window.testProvider('${p.id}')" class="flex-1 bg-blue-600 text-white px-4 py-2 rounded text-sm">Test</button>
             </div>
         `;
         container.appendChild(div);
@@ -341,71 +509,55 @@ window.renderProviders = async function() {
     lucide.createIcons();
 };
 
-window.showAddProviderModal = function() {
+window.openProviderModal = function() {
     resetProviderModal();
     document.getElementById('providerModalTitle').textContent = 'Add AI Provider';
     document.getElementById('providerModal').style.display = 'flex';
 };
 
 window.saveProvider = async function() {
-    console.log('🖱️ saveProvider clicked');
     if (!ensureReady()) return;
-
-    const id = document.getElementById('providerModalId').value;
+    const id = document.getElementById('providerModalId').value || `provider-${Date.now()}`;
     const name = document.getElementById('providerModalName').value.trim();
-    const type = document.getElementById('providerModalType').value;
+    const type = document.getElementById('providerModalType').value.trim() || 'custom';
     const apiUrl = document.getElementById('providerModalApiUrl').value.trim();
-    const apiKey = document.getElementById('providerModalApiKey').value.trim();
+    const apiKey = document.getElementById('providerModalApiKey').value;
     const defaultModel = document.getElementById('providerModalDefaultModel').value.trim();
     const enabled = document.getElementById('providerModalEnabled').checked;
 
-    if (!name || !apiUrl) return ui.notify('Name and URL required', 'error');
+    if (!name || !apiUrl) {
+        ui.notify('Name and API URL are required', 'error');
+        return;
+    }
 
-    // Collect models
+    // Gather models
+    const modelRows = document.querySelectorAll('#providerModalModels > div');
     const models = [];
-    document.querySelectorAll('#providerModalModels [data-index]').forEach(row => {
-        const modelId = row.querySelector('.model-id').value.trim();
-        const modelName = row.querySelector('.model-name').value.trim();
-        const modelDesc = row.querySelector('.model-desc').value.trim();
-        if (modelId && modelName) {
-            models.push({
-                id: modelId,
-                name: modelName,
-                description: modelDesc
-            });
+    modelRows.forEach(row => {
+        const mid = row.querySelector('.model-id')?.value.trim();
+        const mname = row.querySelector('.model-name')?.value.trim();
+        const mdesc = row.querySelector('.model-desc')?.value.trim();
+        if (mid && mname) {
+            models.push({ id: mid, name: mname, description: mdesc });
         }
     });
 
     try {
-        let provider;
-        if (id) {
-            // Editing existing provider
-            provider = await chatManager.providerStorage.getProvider(id);
-            provider.name = name;
-            provider.type = type;
-            provider.apiUrl = apiUrl;
-            provider.defaultModel = defaultModel;
-            provider.models = models;
-            provider.enabled = enabled;
-            // Only update API key if a new one is provided
-            if (apiKey) {
-                provider.apiKey = apiKey;
-            }
-        } else {
-            // Creating new provider
-            provider = ProviderFactory.createCustom({
-                name,
-                type,
-                apiUrl,
-                apiKey,
-                defaultModel,
-                models,
-                enabled
-            });
-        }
+        const existingProvider = await chatManager.providerStorage.getProvider(id);
+
+        const provider = ProviderFactory.create({
+            id,
+            name,
+            type,
+            apiUrl,
+            apiKey: apiKey || existingProvider?.apiKey || '',
+            defaultModel: defaultModel || models[0]?.id || '',
+            models,
+            enabled
+        });
 
         await chatManager.providerStorage.saveProvider(provider);
-        ui.notify('Provider saved!', 'success');
+        ui.notify('Provider saved ✓', 'success');
         document.getElementById('providerModal').style.display = 'none';
         window.renderProviders();
 
@@ -453,62 +605,48 @@ window.editProvider = async function(id) {
 window.deleteProviderPrompt = async function(id) {
     if (!ensureReady()) return;
     if (!confirm('Delete this provider?')) return;
-
-    const activeId = await chatManager.providerStorage.getActiveProviderID();
     await chatManager.providerStorage.deleteProvider(id);
-
-    if (id === activeId) {
-        const remaining = await chatManager.providerStorage.getAllProviders();
-        if (remaining.length > 0) {
-            await chatManager.providerStorage.saveActiveProvider(remaining[0].id);
-        }
-    }
-
     ui.notify('Provider deleted', 'success');
     window.renderProviders();
 
-    // Broadcast to other tabs
     if (syncManager) {
-        syncManager.broadcast('provider-updated', { providerId: id, deleted: true });
+        syncManager.broadcast('provider-updated', { providerId: id });
     }
 };
 
 window.setActiveProvider = async function(id) {
     if (!ensureReady()) return;
     await chatManager.providerStorage.saveActiveProvider(id);
-    ui.notify('Active provider updated', 'success');
+    ui.notify('Active provider set ✓', 'success');
     window.renderProviders();
+
+    if (syncManager) {
+        syncManager.broadcast('provider-updated', { providerId: id });
+    }
 };
 
 window.toggleProviderEnabled = async function(id) {
     if (!ensureReady()) return;
     const provider = await chatManager.providerStorage.getProvider(id);
+    if (!provider) return;
     provider.enabled = !provider.enabled;
     await chatManager.providerStorage.saveProvider(provider);
+    ui.notify(provider.enabled ? 'Provider enabled' : 'Provider disabled', 'success');
     window.renderProviders();
+
+    if (syncManager) {
+        syncManager.broadcast('provider-updated', { providerId: id });
+    }
 };
 
-window.testProvider = async function() {
-    const apiUrl = document.getElementById('providerModalApiUrl').value.trim();
-    const apiKey = document.getElementById('providerModalApiKey').value.trim();
-    const type = document.getElementById('providerModalType').value;
-    const defaultModel = document.getElementById('providerModalDefaultModel').value;
-
-    // If editing and no new key provided, get existing key
-    const providerId = document.getElementById('providerModalId').value;
-    let testKey = apiKey;
-    if (!testKey && providerId) {
-        const existing = await chatManager.providerStorage.getProvider(providerId);
-        if (existing) testKey = existing.apiKey;
-    }
-
-    if (!apiUrl || !testKey) return ui.notify('URL and API Key required for test', 'error');
-
+window.testProvider = async function(id) {
+    if (!ensureReady()) return;
+    const provider = await chatManager.providerStorage.getProvider(id);
+    if (!provider) return;
+    ui.notify('Testing connection...', 'info');
     try {
-        ui.notify('Testing connection...', 'info');
-        const p = ProviderFactory.createCustom({ name: 'Test', type, apiUrl, apiKey: testKey, defaultModel });
-        const res = await p.testConnection();
-        if (res.success) ui.notify('Connection successful! ✓', 'success');
+        const res = await provider.testConnection();
+        if (res.success) ui.notify('Connection successful ✓', 'success');
         else ui.notify('Connection failed: ' + res.message, 'error');
     } catch (e) {
         ui.notify('Test Error: ' + e.message, 'error');

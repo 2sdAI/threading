@@ -1,123 +1,38 @@
 /**
  * ============================================
- * UI MANAGER
+ * UI MANAGER MODULE
  * ============================================
- * Centralized UI rendering and DOM manipulation
+ * Handles all UI rendering and interactions
  */
 
 export class UIManager {
     constructor(chatManager) {
         this.chatManager = chatManager;
-        this.currentView = null;
+        this.currentView = 'welcomeView';
         this.sidebarTab = 'chats';
         this.deferredPrompt = null;
     }
 
-    /**
-     * Initialize UI
-     */
     init() {
-        this.setupEventListeners();
-        this.setupPWA();
-        this.showView('welcomeView');
-    }
+        // Initialize Lucide icons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
 
-    /**
-     * Setup PWA installation and Update listeners
-     */
-    setupPWA() {
-        const installBtn = document.getElementById('pwaInstallBtn');
-
-        // 1. Handle Install Prompt
+        // PWA install handling
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             this.deferredPrompt = e;
-            console.log('PWA Install Prompt Captured');
-            if (installBtn) {
-                installBtn.style.display = 'flex';
-                installBtn.classList.add('fade-in');
-            }
+            const btn = document.getElementById('pwaInstallBtn');
+            if (btn) btn.style.display = 'flex';
         });
 
-        // 2. Handle Successful Install
-        window.addEventListener('appinstalled', () => {
-            if (installBtn) installBtn.style.display = 'none';
-            this.deferredPrompt = null;
-            this.notify('App installed successfully!', 'success');
-        });
-
-        // 3. Handle Service Worker Updates (Versioning)
-        if ('serviceWorker' in navigator) {
-            let refreshing = false;
-            // When the SW controller changes, reload the page
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                if (!refreshing) {
-                    refreshing = true;
-                    window.location.reload();
-                }
-            });
-        }
-    }
-
-    /**
-     * Trigger PWA installation
-     */
-    async installPWA() {
-        if (!this.deferredPrompt) return;
-        this.deferredPrompt.prompt();
-        const { outcome } = await this.deferredPrompt.userChoice;
-        console.log(`Install prompt outcome: ${outcome}`);
-        this.deferredPrompt = null;
-        document.getElementById('pwaInstallBtn').style.display = 'none';
-    }
-
-    /**
-     * Show Update Notification
-     * Called from index.html when a new SW waits
-     */
-    showUpdateNotification(worker) {
-        const div = document.createElement('div');
-        div.className = 'fixed bottom-4 right-4 z-[200] bg-slate-800 border border-white/20 p-4 rounded-lg shadow-2xl flex flex-col gap-2 fade-in';
-        div.innerHTML = `
-            <div class="flex items-center gap-2 text-white">
-                <i data-lucide="download-cloud" class="w-5 h-5 text-blue-400"></i>
-                <span class="font-semibold">New Version Available</span>
-            </div>
-            <p class="text-white/60 text-xs">An update is ready to install.</p>
-            <div class="flex gap-2 mt-2">
-                <button id="updateBtn" class="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-medium hover:bg-blue-500">Update Now</button>
-                <button id="dismissUpdate" class="text-white/60 hover:text-white px-3 py-1.5 text-sm">Dismiss</button>
-            </div>
-        `;
-        document.body.appendChild(div);
-        lucide.createIcons();
-
-        div.querySelector('#updateBtn').addEventListener('click', () => {
-            // Tell the Service Worker to skip waiting and activate
-            worker.postMessage({ action: 'skipWaiting' });
-            div.remove();
-        });
-
-        div.querySelector('#dismissUpdate').addEventListener('click', () => {
-            div.remove();
-        });
-    }
-
-    /**
-     * Setup global event listeners
-     */
-    setupEventListeners() {
-        const messageInput = document.getElementById('messageInput');
-        if (messageInput) {
-            messageInput.addEventListener('input', () => {
-                messageInput.style.height = 'auto';
-                messageInput.style.height = Math.min(messageInput.scrollHeight, 150) + 'px';
-            });
-        }
+        // Set initial view
+        this.showView('welcomeView');
     }
 
     showView(viewId) {
-        const views = ['welcomeView', 'chatView', 'settingsView', 'projectView'];
+        const views = ['welcomeView', 'chatView', 'settingsView'];
         views.forEach(id => {
             const el = document.getElementById(id);
             if (el) {
@@ -185,17 +100,52 @@ export class UIManager {
                 : 'No messages';
 
             return `
-                <div onclick="loadChat('${chat.id}')" 
-                     class="card mb-2 ${isActive ? 'ring-2 ring-white/30' : ''}" 
-                     style="padding: 12px;">
-                    <div class="flex items-start justify-between gap-2 mb-1">
-                        <h3 class="font-semibold text-white text-sm flex-1 truncate">${this.escapeHtml(chat.title)}</h3>
-                        ${chat.pinned ? '<i data-lucide="pin" class="w-3 h-3 text-yellow-300 flex-shrink-0"></i>' : ''}
+                <div class="chat-card card mb-2 ${isActive ? 'ring-2 ring-white/30' : ''}" 
+                     data-chat-id="${chat.id}"
+                     style="padding: 12px; position: relative;">
+                    
+                    <!-- Main clickable area -->
+                    <div class="chat-card-content" onclick="loadChat('${chat.id}')">
+                        <div class="flex items-start justify-between gap-2 mb-1">
+                            <h3 class="font-semibold text-white text-sm flex-1 truncate">${this.escapeHtml(chat.title)}</h3>
+                            <div class="flex items-center gap-1 flex-shrink-0">
+                                ${chat.pinned ? '<i data-lucide="pin" class="w-3 h-3 text-yellow-300"></i>' : ''}
+                                ${chat.archived ? '<i data-lucide="archive" class="w-3 h-3 text-gray-400"></i>' : ''}
+                            </div>
+                        </div>
+                        <p class="text-white/60 text-xs truncate mb-2">${this.escapeHtml(preview)}</p>
+                        <div class="flex items-center justify-between text-xs text-white/40">
+                            <span>${chat.getMessageCount()} messages</span>
+                            <span>${this.formatDate(chat.updatedAt)}</span>
+                        </div>
                     </div>
-                    <p class="text-white/60 text-xs truncate mb-2">${this.escapeHtml(preview)}</p>
-                    <div class="flex items-center justify-between text-xs text-white/40">
-                        <span>${chat.getMessageCount()} messages</span>
-                        <span>${this.formatDate(chat.updatedAt)}</span>
+                    
+                    <!-- Action buttons (visible on hover) -->
+                    <div class="chat-card-actions">
+                        <button 
+                            onclick="event.stopPropagation(); toggleChatPin('${chat.id}')" 
+                            class="chat-action-btn ${chat.pinned ? 'active' : ''}"
+                            title="${chat.pinned ? 'Unpin chat' : 'Pin chat'}">
+                            <i data-lucide="pin" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button 
+                            onclick="event.stopPropagation(); cloneChatPrompt('${chat.id}')" 
+                            class="chat-action-btn"
+                            title="Clone chat">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button 
+                            onclick="event.stopPropagation(); archiveChatPrompt('${chat.id}')" 
+                            class="chat-action-btn ${chat.archived ? 'active' : ''}"
+                            title="${chat.archived ? 'Unarchive chat' : 'Archive chat'}">
+                            <i data-lucide="archive" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <button 
+                            onclick="event.stopPropagation(); deleteChatPrompt('${chat.id}')" 
+                            class="chat-action-btn chat-action-btn-danger"
+                            title="Delete chat">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
                     </div>
                 </div>
             `;
@@ -248,51 +198,34 @@ export class UIManager {
             }
 
             const providerInfo = msg.providerName
-                ? `<span class="text-xs text-white/40 mt-2 block">${this.escapeHtml(msg.providerName)} · ${this.escapeHtml(msg.modelName || '')}</span>`
+                ? `<span class="text-xs text-white/40">${msg.providerName}${msg.modelName ? ` · ${msg.modelName}` : ''}</span>`
                 : '';
 
             return `
-                <div class="flex ${alignment} mb-4">
-                    <div class="max-w-[85%] ${bgColor} border ${borderColor} rounded-xl px-4 py-3">
-                        <div class="prose prose-invert prose-sm max-w-none">${formattedContent}</div>
+                <div class="flex ${alignment} mb-4 fade-in message-${msg.role}">
+                    <div class="message-bubble ${bgColor} border ${borderColor}">
                         ${providerInfo}
+                        <div class="prose prose-invert prose-sm max-w-none">
+                            ${formattedContent}
+                        </div>
+                        <div class="text-xs text-white/30 mt-2">${this.formatTime(msg.timestamp)}</div>
                     </div>
                 </div>
             `;
         }).join('');
 
+        lucide.createIcons();
+        this.scrollToBottom();
+
         // Apply syntax highlighting
         if (typeof Prism !== 'undefined') {
             Prism.highlightAllUnder(container);
         }
-
-        lucide.createIcons();
-        this.scrollToBottom();
-    }
-
-    showTypingIndicator() {
-        const container = document.getElementById('messagesContainer');
-        if (!container) return;
-
-        const indicator = document.createElement('div');
-        indicator.id = 'typing';
-        indicator.className = 'flex justify-start mb-4';
-        indicator.innerHTML = `
-            <div class="bg-white/10 border border-white/10 rounded-xl px-4 py-3">
-                <div class="flex gap-1">
-                    <span class="w-2 h-2 bg-white/60 rounded-full animate-bounce" style="animation-delay: 0ms"></span>
-                    <span class="w-2 h-2 bg-white/60 rounded-full animate-bounce" style="animation-delay: 150ms"></span>
-                    <span class="w-2 h-2 bg-white/60 rounded-full animate-bounce" style="animation-delay: 300ms"></span>
-                </div>
-            </div>
-        `;
-        container.appendChild(indicator);
-        this.scrollToBottom();
     }
 
     notify(message, type = 'info') {
         const notification = document.createElement('div');
-        notification.className = `fixed top-4 right-4 z-[100] px-4 py-3 rounded-lg text-white shadow-lg fade-in ${
+        notification.className = `fixed top-4 right-4 z-50 px-4 py-3 rounded-lg text-white shadow-lg fade-in ${
             type === 'error' ? 'bg-red-500' :
                 type === 'success' ? 'bg-green-500' :
                     'bg-blue-500'
@@ -377,6 +310,11 @@ export class UIManager {
         return date.toLocaleDateString();
     }
 
+    formatTime(timestamp) {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
     escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
@@ -391,6 +329,30 @@ export class UIManager {
     hideModal(modalId) {
         const modal = document.getElementById(modalId);
         if (modal) modal.style.display = 'none';
+    }
+
+    /**
+     * Show confirmation modal with custom content
+     */
+    showConfirmModal(options) {
+        const { title, message, icon, iconColor, confirmText, confirmClass, onConfirm } = options;
+
+        document.getElementById('confirmModalTitle').textContent = title;
+        document.getElementById('confirmModalMessage').textContent = message;
+
+        const iconEl = document.getElementById('confirmModalIcon');
+        iconEl.setAttribute('data-lucide', icon || 'alert-triangle');
+        iconEl.setAttribute('class', `w-12 h-12 mx-auto mb-4 ${iconColor || 'text-yellow-400'}`);
+
+        const confirmBtn = document.getElementById('confirmModalConfirmBtn');
+        confirmBtn.textContent = confirmText || 'Confirm';
+        confirmBtn.className = `flex-1 px-4 py-2 rounded-lg font-semibold transition-all ${confirmClass || 'bg-red-500 hover:bg-red-600 text-white'}`;
+
+        // Store callback for confirm button
+        window._confirmModalCallback = onConfirm;
+
+        this.showModal('confirmModal');
+        lucide.createIcons();
     }
 
     clearInput() {
@@ -456,37 +418,35 @@ export class UIManager {
         provider.models.forEach(model => {
             const option = document.createElement('option');
             option.value = model.id;
-            option.textContent = model.name + (model.description ? ` - ${model.description}` : '');
+            option.textContent = model.name + (model.description ? ` (${model.description})` : '');
             modelSelect.appendChild(option);
         });
 
+        // Select appropriate model
         let selectedModelId;
-        if (preserveSelection && currentSelection && provider.models.find(m => m.id === currentSelection)) {
+        if (preserveSelection && currentSelection) {
             selectedModelId = currentSelection;
-        } else if (chat && chat.defaultModelId && provider.models.find(m => m.id === chat.defaultModelId)) {
+        } else if (chat.defaultModelId) {
             selectedModelId = chat.defaultModelId;
         } else {
-            selectedModelId = provider.defaultModel || provider.models[0].id;
+            selectedModelId = provider.defaultModel || provider.models[0]?.id;
         }
-        modelSelect.value = selectedModelId;
 
-        this.updateStatusText(provider, selectedModelId, chat);
+        if (selectedModelId && provider.models.find(m => m.id === selectedModelId)) {
+            modelSelect.value = selectedModelId;
+        }
     }
 
-    updateStatusText(provider, modelId, chat) {
-        const statusDiv = document.getElementById('chatProviderStatus');
-        if (!provider) {
-            statusDiv.innerHTML = '<i data-lucide="alert-circle" class="w-3 h-3 text-red-400"></i> <span class="text-red-200">No provider selected</span>';
-            lucide.createIcons();
-            return;
+    async installPWA() {
+        if (this.deferredPrompt) {
+            this.deferredPrompt.prompt();
+            const { outcome } = await this.deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+                this.notify('App installed successfully!', 'success');
+            }
+            this.deferredPrompt = null;
+            const btn = document.getElementById('pwaInstallBtn');
+            if (btn) btn.style.display = 'none';
         }
-        const selectedModel = provider.models.find(m => m.id === modelId);
-        const isChatDefault = chat && chat.defaultProviderId === provider.id && chat.defaultModelId === modelId;
-
-        statusDiv.innerHTML = `
-            <i data-lucide="check-circle" class="w-3 h-3 text-green-400"></i>
-            <span class="text-green-200"><strong>${this.escapeHtml(provider.name)}</strong> · ${this.escapeHtml(selectedModel?.name || modelId)}${isChatDefault ? ' (Chat Default)' : ''}</span>
-        `;
-        lucide.createIcons();
     }
 }

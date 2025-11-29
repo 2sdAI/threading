@@ -1,3 +1,4 @@
+// __tests__/unit/chat-manager-edge-cases.test.js
 /**
  * ============================================
  * CHAT MANAGER EDGE CASES TESTS
@@ -71,7 +72,7 @@ describe('ChatManager Edge Cases', () => {
             chatManager.currentChatId = 'chat-1';
 
             // sendToAI should throw when no provider is available
-            await expect(chatManager.sendToAI('hello')).rejects.toThrow();
+            await expect(chatManager.sendToAI()).rejects.toThrow();
         });
 
         it('should handle concurrent chat operations', async () => {
@@ -256,7 +257,7 @@ describe('ChatManager Edge Cases', () => {
             };
             mockProviderStorage.getProvider.mockResolvedValue(mockProvider);
 
-            await chatManager.sendToAI('Hello', 'provider-explicit');
+            await chatManager.sendToAI(null, 'provider-explicit');
 
             expect(mockProviderStorage.getProvider).toHaveBeenCalledWith('provider-explicit');
         });
@@ -279,7 +280,7 @@ describe('ChatManager Edge Cases', () => {
             };
             mockProviderStorage.getProvider.mockResolvedValue(mockProvider);
 
-            await chatManager.sendToAI('Hello');
+            await chatManager.sendToAI();
 
             // Should use chat default, not global active
             expect(mockProviderStorage.getProvider).toHaveBeenCalledWith('provider-chat');

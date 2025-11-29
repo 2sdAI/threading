@@ -1,3 +1,4 @@
+// __tests__/unit/chat-manager.test.js
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ChatManager } from '@/modules/chat-manager.js';
 import { Chat } from '@/modules/chat.js';
@@ -301,7 +302,7 @@ describe('ChatManager', () => {
         });
 
         it('should send message to AI and return response', async () => {
-            const result = await chatManager.sendToAI('Hello');
+            const result = await chatManager.sendToAI();
 
             expect(result.content).toBe('AI Response');
             expect(result.providerId).toBe('provider-1');
@@ -313,28 +314,28 @@ describe('ChatManager', () => {
         it('should throw error when no active chat', async () => {
             chatManager.currentChatId = null;
 
-            await expect(chatManager.sendToAI('Hello'))
+            await expect(chatManager.sendToAI())
                 .rejects.toThrow('No active chat');
         });
 
         it('should throw error when no provider configured', async () => {
             mockProviderStorage.getActiveProviderID.mockResolvedValue(null);
 
-            await expect(chatManager.sendToAI('Hello'))
+            await expect(chatManager.sendToAI())
                 .rejects.toThrow('No AI provider configured');
         });
 
         it('should throw error when provider not found', async () => {
             mockProviderStorage.getProvider.mockResolvedValue(null);
 
-            await expect(chatManager.sendToAI('Hello'))
+            await expect(chatManager.sendToAI())
                 .rejects.toThrow('Provider not found');
         });
 
         it('should throw error when provider is disabled', async () => {
             mockProvider.enabled = false;
 
-            await expect(chatManager.sendToAI('Hello'))
+            await expect(chatManager.sendToAI())
                 .rejects.toThrow('Provider Test Provider is disabled');
         });
 
@@ -349,13 +350,13 @@ describe('ChatManager', () => {
             };
             mockProviderStorage.getProvider.mockResolvedValue(provider2);
 
-            await chatManager.sendToAI('Hello');
+            await chatManager.sendToAI();
 
             expect(mockProviderStorage.getProvider).toHaveBeenCalledWith('provider-2');
         });
 
         it('should use provided provider and model over defaults', async () => {
-            await chatManager.sendToAI('Hello', 'override-provider', 'override-model');
+            await chatManager.sendToAI(null, 'override-provider', 'override-model');
 
             expect(mockProviderStorage.getProvider).toHaveBeenCalledWith('override-provider');
         });
@@ -363,7 +364,7 @@ describe('ChatManager', () => {
         it('should use provider default model if no model specified', async () => {
             chat.defaultModelId = null;
 
-            await chatManager.sendToAI('Hello');
+            await chatManager.sendToAI();
 
             expect(mockProvider.sendRequest).toHaveBeenCalledWith(
                 expect.anything(),
@@ -374,12 +375,9 @@ describe('ChatManager', () => {
         it('should handle model not found in models array', async () => {
             mockProvider.models = [];
 
-            const result = await chatManager.sendToAI('Hello');
+            const result = await chatManager.sendToAI();
 
-            // modelId is set from the effective model
             expect(result.modelId).toBe('model-1');
-            // Implementation may fall back modelName to modelId when model not found
-            // Just verify the call completed successfully
             expect(result.content).toBe('AI Response');
             expect(result.providerId).toBe('provider-1');
         });

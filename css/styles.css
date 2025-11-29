@@ -1,7 +1,7 @@
 /* ============================================
    CORE STYLES & VARIABLES
    ============================================ */
-   * {
+* {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -43,6 +43,17 @@ body {
     to { opacity: 1; transform: translateY(0); }
 }
 .fade-in { animation: fadeIn 0.2s ease-out forwards; }
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.slide-up { animation: slideUp 0.3s ease-out forwards; }
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
 
 /* ============================================
    LAYOUT
@@ -178,7 +189,9 @@ textarea#messageInput {
     background: rgba(255, 255, 255, 0.1);
 }
 
-/* Cards */
+/* ============================================
+   CARDS & CHAT CARDS
+   ============================================ */
 .card {
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -187,12 +200,94 @@ textarea#messageInput {
     cursor: pointer;
     transition: all 0.2s ease;
 }
+
 .card:hover {
     background: rgba(255, 255, 255, 0.15);
     transform: translateY(-2px);
 }
 
-/* Modal */
+/* Chat Card with Actions */
+.chat-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.chat-card-content {
+    cursor: pointer;
+}
+
+/* Chat Card Action Buttons */
+.chat-card-actions {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 8px;
+    background: linear-gradient(to left, rgba(30, 30, 50, 0.98) 60%, transparent);
+    opacity: 0;
+    transform: translateX(10px);
+    transition: all 0.2s ease;
+    pointer-events: none;
+}
+
+.chat-card:hover .chat-card-actions {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: auto;
+}
+
+/* Touch devices - always show actions */
+@media (hover: none) {
+    .chat-card-actions {
+        opacity: 1;
+        transform: translateX(0);
+        pointer-events: auto;
+        background: linear-gradient(to left, rgba(30, 30, 50, 0.95) 70%, transparent);
+    }
+}
+
+.chat-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.chat-action-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    transform: scale(1.1);
+}
+
+.chat-action-btn.active {
+    background: rgba(234, 179, 8, 0.2);
+    border-color: rgba(234, 179, 8, 0.3);
+    color: #fbbf24;
+}
+
+.chat-action-btn.active:hover {
+    background: rgba(234, 179, 8, 0.3);
+}
+
+.chat-action-btn-danger:hover {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #f87171;
+}
+
+/* ============================================
+   MODAL STYLES
+   ============================================ */
 .modal {
     position: fixed;
     inset: 0;
@@ -204,6 +299,7 @@ textarea#messageInput {
     justify-content: center;
     padding: 1rem;
 }
+
 .modal-content {
     background: #1f2937; /* Dark fallback */
     background: linear-gradient(145deg, rgba(40, 45, 70, 0.95), rgba(25, 25, 40, 0.98));
@@ -217,8 +313,225 @@ textarea#messageInput {
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
-/* Status Badges */
-.status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
-.status-todo { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.3); }
-.status-in-progress { background: rgba(59, 130, 246, 0.2); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); }
-.status-done { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
+/* Confirm Modal - Smaller and Centered */
+.modal-content-sm {
+    max-width: 400px;
+    text-align: center;
+    padding: 2rem;
+}
+
+.modal-content-sm .modal-icon {
+    margin-bottom: 1rem;
+}
+
+.modal-content-sm .modal-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 0.5rem;
+}
+
+.modal-content-sm .modal-message {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+    line-height: 1.5;
+}
+
+.modal-content-sm .modal-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.modal-content-sm .modal-actions button {
+    flex: 1;
+    padding: 0.625rem 1rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border: none;
+}
+
+/* ============================================
+   STATUS BADGES
+   ============================================ */
+.status-badge { 
+    display: inline-block; 
+    padding: 4px 10px; 
+    border-radius: 12px; 
+    font-size: 0.75rem; 
+    font-weight: 600; 
+}
+
+.status-todo { 
+    background: rgba(148, 163, 184, 0.2); 
+    color: #cbd5e1; 
+    border: 1px solid rgba(148, 163, 184, 0.3); 
+}
+
+.status-in-progress { 
+    background: rgba(59, 130, 246, 0.2); 
+    color: #93c5fd; 
+    border: 1px solid rgba(59, 130, 246, 0.3); 
+}
+
+.status-done { 
+    background: rgba(16, 185, 129, 0.2); 
+    color: #6ee7b7; 
+    border: 1px solid rgba(16, 185, 129, 0.3); 
+}
+
+/* ============================================
+   TYPING INDICATOR
+   ============================================ */
+.typing-dots {
+    display: flex;
+    gap: 4px;
+}
+
+.typing-dots span {
+    width: 6px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+    animation: typingDot 1.4s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(1) { animation-delay: 0s; }
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typingDot {
+    0%, 80%, 100% { 
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+    40% { 
+        transform: scale(1.2);
+        opacity: 1;
+    }
+}
+
+/* ============================================
+   CODE BLOCKS & PROSE
+   ============================================ */
+.prose pre {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 0.5rem 0;
+}
+
+.prose code {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 0.125rem 0.375rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.prose pre code {
+    background: transparent;
+    padding: 0;
+}
+
+.prose p {
+    margin-bottom: 0.5rem;
+}
+
+.prose ul, .prose ol {
+    margin-left: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.prose h1, .prose h2, .prose h3 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+/* ============================================
+   NOTIFICATIONS
+   ============================================ */
+.notification {
+    transition: opacity 0.3s ease;
+}
+
+/* ============================================
+   FORM ELEMENTS
+   ============================================ */
+input[type="text"],
+input[type="password"],
+textarea,
+select {
+    outline: none;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus,
+textarea:focus,
+select:focus {
+    border-color: rgba(255, 255, 255, 0.4);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+}
+
+/* Checkbox styling */
+input[type="checkbox"] {
+    accent-color: #667eea;
+}
+
+/* ============================================
+   SETTINGS VIEW
+   ============================================ */
+#settingsView {
+    overflow-y: auto;
+}
+
+/* ============================================
+   ACCESSIBILITY
+   ============================================ */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Focus visible styles */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.5);
+    outline-offset: 2px;
+}
+
+/* ============================================
+   TOOLTIP (Optional Enhancement)
+   ============================================ */
+[title] {
+    position: relative;
+}
+
+/* ============================================
+   PRINT STYLES
+   ============================================ */
+@media print {
+    body {
+        background: white;
+        color: black;
+    }
+    
+    #sidebar,
+    .chat-input-area,
+    .chat-card-actions {
+        display: none !important;
+    }
+}
